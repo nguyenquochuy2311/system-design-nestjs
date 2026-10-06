@@ -1,4 +1,4 @@
-# CLAUDE.md — design-patterns-practice
+# CLAUDE.md — system-design-nestjs
 
 Repo thực hành design pattern giải bài toán doanh nghiệp ở tầng web application, **viết hoàn toàn
 bằng tiếng Việt**, tên pattern giữ tiếng Anh.

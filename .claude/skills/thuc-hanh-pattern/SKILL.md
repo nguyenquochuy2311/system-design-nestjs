@@ -1,6 +1,6 @@
 ---
 name: thuc-hanh-pattern
-description: "Ngữ cảnh chung và quy ước bắt buộc của repo design-patterns-practice — thực hành design pattern giải bài toán doanh nghiệp ở tầng web application, viết hoàn toàn bằng tiếng Việt. Dùng skill này MỖI KHI tạo, sửa, review hay hoàn thiện bất kỳ scope, bài toán, README, sơ đồ Mermaid, code mẫu hay tiến độ trong repo này — kể cả khi người dùng chỉ nói 'thêm bài về cache', 'viết tiếp scope k8s', 'làm bài số 3', 'review README này', 'cập nhật tiến độ' hay 'ghi lại quyết định'. Skill chứa: cách đặt tên bài toán theo pattern, template README (What / Why / How / Tech stack / Impact / Nguồn), quy ước sơ đồ, quy ước code TypeScript, danh mục nguồn được phép trích dẫn và quy tắc không bịa đặt."
+description: "Ngữ cảnh chung và quy ước bắt buộc của repo system-design-nestjs — thực hành design pattern giải bài toán doanh nghiệp ở tầng web application, viết hoàn toàn bằng tiếng Việt. Dùng skill này MỖI KHI tạo, sửa, review hay hoàn thiện bất kỳ scope, bài toán, README, sơ đồ Mermaid, code mẫu hay tiến độ trong repo này — kể cả khi người dùng chỉ nói 'thêm bài về cache', 'viết tiếp scope k8s', 'làm bài số 3', 'review README này', 'cập nhật tiến độ' hay 'ghi lại quyết định'. Skill chứa: cách đặt tên bài toán theo pattern, template README (What / Why / How / Tech stack / Impact / Nguồn), quy ước sơ đồ, quy ước code TypeScript, danh mục nguồn được phép trích dẫn và quy tắc không bịa đặt."
 ---
 
 # Skill: thuc-hanh-pattern
@@ -52,7 +52,7 @@ Trước khi viết gì, đọc theo thứ tự (mỗi file ngắn, mất vài p
 ## 4. Cấu trúc repo
 
 ```text
-design-patterns-practice/
+system-design-nestjs/
 ├── README.md                     # Tổng quan, 24 scope, cách đọc
 ├── CLAUDE.md                     # Trỏ tới skill này + lệnh nhanh
 ├── TIEN-DO.md                    # Sinh bởi scripts/tao-tien-do.mjs
