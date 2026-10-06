@@ -1,0 +1,15 @@
+{
+  "name": "design-patterns-practice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thực hành design pattern giải bài toán doanh nghiệp ở tầng web application — tiếng Việt, có nguồn gốc, có sơ đồ.",
+  "type": "module",
+  "scripts": {
+    "tien-do": "node scripts/tao-tien-do.mjs",
+    "kiem-tra": "node scripts/kiem-tra-readme.mjs",
+    "xem-mermaid": "node scripts/xem-mermaid.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

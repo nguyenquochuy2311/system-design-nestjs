@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "xem-mermaid",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/xem-mermaid.mjs", "8765"],
+      "port": 8765
+    }
+  ]
+}
