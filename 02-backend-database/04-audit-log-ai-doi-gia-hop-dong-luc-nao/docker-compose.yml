@@ -1,0 +1,51 @@
+# Lab Audit Log & Soft Delete: PostgreSQL 16 (trigger PL/pgSQL, JSONB, set_config) và một PgBouncer chế độ
+# transaction để kiểm tra "người thực hiện" không rò giữa các request khi đi qua pooler (test actor-context-no-leak).
+# Cổng host: Postgres 55432, PgBouncer 56432 (không dùng cổng mặc định để không đụng dự án khác trên máy).
+services:
+  postgres:
+    image: postgres:16
+    # /dev/shm mặc định của container chỉ 64 MB: VACUUM song song trên hai index của audit_log xin vùng nhớ chia sẻ
+    # cỡ maintenance_work_mem (64 MB) và lỗi "could not resize shared memory segment ... No space left on device".
+    shm_size: 256mb
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all # thấy cả câu INSERT chạy bên trong trigger nhật ký
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: insurance
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro # init.sql nạp schema-before.sql; pnpm db:migrate chạy migrate.sql bằng psql trong container
+    healthcheck:
+      # Hỏi qua TCP: trong lúc chạy init.sql, server tạm của image chỉ nghe Unix socket (listen_addresses=''),
+      # nên "healthy" qua TCP nghĩa là init đã xong và `pnpm db:seed` chạy ngay được.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d insurance"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest # bài 02/03 đã kiểm: PgBouncer 1.26.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "56432:5432"
+    volumes:
+      - ./infra/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infra/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U contract_app -d insurance"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

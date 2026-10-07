@@ -1,0 +1,39 @@
+{
+  "name": "audit-log-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 02/04: Audit Log (trigger + JSONB) và Soft Delete cho hợp đồng bảo hiểm trên PostgreSQL 16",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U postgres -d insurance -v ON_ERROR_STOP=1 -v contracts=${CONTRACTS:-40000} -f /lab/db/seed-contracts.sql",
+    "db:migrate": "docker compose exec -T postgres psql -U postgres -d insurance -v ON_ERROR_STOP=1 -f /lab/db/migrate.sql",
+    "db:psql": "docker compose exec postgres psql -U postgres -d insurance",
+    "db:reset": "docker compose down -v",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:paths": "tsx bench/write-paths-coverage.ts",
+    "bench:storage": "tsx bench/audit-storage.ts",
+    "bench:history": "tsx bench/history-query.ts",
+    "bench:trigger": "tsx bench/trigger-cost.ts",
+    "bench:restore": "tsx bench/restore-drill.ts",
+    "bench:overhead": "tsx bench/run-overhead.ts",
+    "bench:summary": "SUMMARY_ONLY=1 tsx bench/run-overhead.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

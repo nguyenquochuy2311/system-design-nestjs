@@ -96,3 +96,14 @@ lưu bộ đếm.
 
 **Lý do:** Đo thử ở bài 02/03, pod trên host gọi DB qua proxy cổng của Docker Desktop: `com.docker.backend` khoảng 124 % CPU, 22–29/30 kết nối PostgreSQL ở `ClientRead`, thông lượng chỉ khoảng 1/3 so với pod trong mạng Compose; số đo phản ánh proxy chứ không phải pattern. Ở 40 pod trên laptop 8 vCPU, load của máy ảo lên 15–45, nên số độ trễ cần đọc cùng mức tranh CPU.
 **Ảnh hưởng:** Bài cần nhiều bản sao (scope 16, 18...) theo (1) và (3). Bảng cổng trong skill chưa sửa (phiên này không được sửa skill); người sở hữu skill quyết định có bổ sung 56433 hay không.
+
+## 2026-10-07 — Quy ước lab rút ra từ bài 02/04 (Audit Log & Soft Delete)
+
+**Quyết định**
+1. Healthcheck của container PostgreSQL hỏi qua TCP: `pg_isready -h 127.0.0.1 ...`. Lúc chạy script trong `docker-entrypoint-initdb.d`, server tạm của image `postgres` chỉ nghe Unix socket (`listen_addresses=''`), nên hỏi qua socket có thể báo "healthy" trước khi `init.sql` xong, và `pnpm db:up && pnpm db:seed` sẽ chạy đua với init.
+2. Lab có bảng từ vài trăm nghìn dòng trở lên với nhiều index (VACUUM, tạo index hay truy vấn song song) đặt `shm_size: 256mb` cho container PostgreSQL. `/dev/shm` mặc định 64 MB không đủ cho `maintenance_work_mem` 64 MB.
+3. Khi pattern nằm trong database (trigger, quyền, ràng buộc) và code "trước" không tránh được nó trên cùng bảng, dựng "trước" và "sau" ở hai schema của cùng database, nạp từ một file DDL chung (bài 02/04: `truoc` và `public`). Migration của pattern chỉ áp dụng lên schema "sau".
+4. So overhead của một pattern ở tầng DB qua API chạy trên host thì đo kèm thời gian một vòng gọi DB (`SELECT 1`, tuần tự và song song bằng số VU). Thêm transaction hay câu lệnh là thêm vòng gọi, và qua cổng Docker Desktop mỗi vòng cỡ 0,2 – 0,5 ms; không có số này thì dễ đổ hết độ chênh cho pattern.
+
+**Lý do:** Bài 02/04 gặp lỗi `could not resize shared memory segment` khi `VACUUM` nhật ký 400.000 dòng (2). Ở (4), trigger chỉ tốn khoảng 0,1 ms trong DB, nhưng `withActor` thêm ba vòng gọi làm p50 qua API tăng khoảng 1,9 ms. Với (1), lab chưa gặp lỗi thật, nhưng đã thấy `listen_addresses=''` trong entrypoint của image.
+**Ảnh hưởng:** Bài sau có PostgreSQL theo (1); bài có bảng lớn theo (2). `docker-compose.yml` của bài 02/01–02/03 chưa sửa (phiên này không được sửa bài khác).
