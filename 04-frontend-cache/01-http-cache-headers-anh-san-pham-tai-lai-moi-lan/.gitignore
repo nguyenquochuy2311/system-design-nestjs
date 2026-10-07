@@ -1,0 +1,6 @@
+node_modules/
+bench/results/
+.data/
+web/.next/
+web/next-env.d.ts
+.env

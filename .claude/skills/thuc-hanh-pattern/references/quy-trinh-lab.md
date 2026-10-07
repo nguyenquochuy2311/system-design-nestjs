@@ -42,6 +42,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | Temporal | 57233 |
 | API của lab | 3100 (service thêm: 3101, 3102...) |
 | Frontend của lab | 5173 hoặc 3200 |
+| Nginx (CDN mô phỏng, reverse proxy) | 58088 |
 
 Lab cần nhiều bản sao ứng dụng (pod): chạy pod trong container cùng mạng Compose với DB (`docker compose --scale`,
 code gói bằng esbuild, `node:20-alpine`), k6 trong container `grafana/k6` cùng mạng; không nối pod trên host qua cổng

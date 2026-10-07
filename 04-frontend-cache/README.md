@@ -33,7 +33,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [HTTP Caching (Cache-Control, ETag) — Ảnh và JS tải lại mỗi lần, hóa đơn CDN tăng](./01-http-cache-headers-anh-san-pham-tai-lai-moi-lan/) | 🟢 | RFC 9111 "HTTP Caching"; MDN "HTTP caching" | 📋 |
+| 01 | [HTTP Caching (Cache-Control, ETag) — Ảnh và JS tải lại mỗi lần, hóa đơn CDN tăng](./01-http-cache-headers-anh-san-pham-tai-lai-moi-lan/) | 🟢 | RFC 9111 "HTTP Caching"; MDN "HTTP caching" |✅ |
 | 02 | [Cache Busting (content hash + immutable) — Deploy xong, nửa người dùng vẫn chạy JS cũ gọi API mới](./02-cache-busting-deploy-xong-user-van-chay-js-cu/) | 🟢 | RFC 9111 (`immutable`, RFC 8246); Next.js / Vite docs (hashed assets) | 📋 |
 | 03 | [Stale-While-Revalidate (client) — Quay lại trang danh sách đơn lại thấy vòng xoay loading](./03-stale-while-revalidate-quay-lai-trang-lai-thay-loading/) | 🟢 | RFC 5861 (stale-while-revalidate); TanStack Query docs (staleTime, refetch); SWR docs | 📋 |
 | 04 | [Optimistic UI — Bấm "Thích" / "Thêm vào giỏ" phải chờ 1 giây mới thấy phản hồi](./04-optimistic-ui-bam-thich-cho-mot-giay/) | 🟡 | TanStack Query docs "Optimistic Updates"; Apollo Client docs "Optimistic mutation results"; Nielsen, "Response Times" (1993) | 📋 |

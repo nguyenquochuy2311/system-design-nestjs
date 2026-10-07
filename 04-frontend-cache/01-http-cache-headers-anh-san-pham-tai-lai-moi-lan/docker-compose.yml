@@ -1,0 +1,23 @@
+# Lab HTTP Caching: chỉ một dịch vụ hạ tầng là CDN mô phỏng (Nginx proxy_cache). Không có database: catalog, giỏ hàng
+# và ảnh nằm trong bộ nhớ của API. Máy gốc (API NestJS 3100, trang Next.js 3200) chạy trên host.
+# Cổng host 58088 (bảng cổng của skill chưa có Nginx; ghi ở nhật ký quyết định).
+# nginx:1.30.5 là tag `stable` lúc làm lab (cùng digest sha256:9bf97bd7...), ghim để chạy lại ra cùng bản.
+name: lab-04-01
+
+services:
+  cdn:
+    image: nginx:1.30.5
+    ports:
+      - "58088:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx/cdn.conf:/etc/nginx/nginx.conf:ro
+      - ./.data/cdn-logs:/var/log/cdn
+    tmpfs:
+      - /var/cache/nginx/cdn:size=1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/__cdn/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
