@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 187 | 0 | 6 |
+| 193 | 186 | 0 | 7 |
 
 ## Theo scope
 
@@ -14,7 +14,7 @@
 |---|---|---|---|---|---|---|---|
 | [01 · Giao tiếp Frontend ↔ Backend (`frontend / backend / transporter`)](./01-frontend-backend-transporter/) | 7 | 2 | 4 | 1 | 7 | 0 | 0 |
 | [02 · Cơ sở dữ liệu quan hệ (`backend / database`)](./02-backend-database/) | 9 | 2 | 3 | 4 | 5 | 0 | 4 |
-| [03 · Cache phía backend (`backend / cache`)](./03-backend-cache/) | 6 | 2 | 2 | 2 | 6 | 0 | 0 |
+| [03 · Cache phía backend (`backend / cache`)](./03-backend-cache/) | 6 | 2 | 2 | 2 | 5 | 0 | 1 |
 | [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 6 | 0 | 0 |
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
 | [06 · Thời gian thực (`frontend / backend / realtime`)](./06-frontend-backend-realtime/) | 7 | 1 | 3 | 3 | 7 | 0 | 0 |
@@ -69,7 +69,7 @@
 
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
-| [Cache-Aside — Trang sản phẩm được đọc 10.000 lần/phút nhưng chỉ đổi 2 lần/ngày](./03-backend-cache/01-cache-aside-trang-san-pham-doc-10k-lan-phut/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Cache-Aside — Trang sản phẩm được đọc 10.000 lần/phút nhưng chỉ đổi 2 lần/ngày](./03-backend-cache/01-cache-aside-trang-san-pham-doc-10k-lan-phut/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-07 |
 | [Cache Invalidation (TTL + event-driven) — Đổi giá rồi mà khách vẫn thấy giá cũ 15 phút](./03-backend-cache/02-ttl-va-invalidation-gia-doi-roi-khach-van-thay-gia-cu/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [Cache Stampede Prevention (lock / lease / early expiration) — Flash sale: key hết hạn đúng lúc 50k người vào, DB sập](./03-backend-cache/03-cache-stampede-flash-sale-cache-het-han-db-sap/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Write-Through / Write-Behind — Số dư ví phải mới tức thì nhưng DB không chịu nổi mọi lần ghi](./03-backend-cache/04-write-through-write-behind-so-du-vi-can-moi-tuc-thi/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |

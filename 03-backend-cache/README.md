@@ -31,7 +31,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [Cache-Aside — Trang sản phẩm được đọc 10.000 lần/phút nhưng chỉ đổi 2 lần/ngày](./01-cache-aside-trang-san-pham-doc-10k-lan-phut/) | 🟢 | Azure Architecture Center "Cache-Aside"; AWS whitepaper "Database Caching Strategies Using Redis"; Redis docs | 📋 |
+| 01 | [Cache-Aside — Trang sản phẩm được đọc 10.000 lần/phút nhưng chỉ đổi 2 lần/ngày](./01-cache-aside-trang-san-pham-doc-10k-lan-phut/) | 🟢 | Azure Architecture Center "Cache-Aside"; AWS whitepaper "Database Caching Strategies Using Redis"; Redis docs | ✅ |
 | 02 | [Cache Invalidation (TTL + event-driven) — Đổi giá rồi mà khách vẫn thấy giá cũ 15 phút](./02-ttl-va-invalidation-gia-doi-roi-khach-van-thay-gia-cu/) | 🟢 | AWS whitepaper (TTL, eviction); Amazon Builders' Library "Caching challenges and strategies"; Redis docs (keyspace notifications) | 📋 |
 | 03 | [Cache Stampede Prevention (lock / lease / early expiration) — Flash sale: key hết hạn đúng lúc 50k người vào, DB sập](./03-cache-stampede-flash-sale-cache-het-han-db-sap/) | 🟡 | Nishtala et al., "Scaling Memcache at Facebook" (NSDI 2013) — leases; Vattani et al., "Optimal Probabilistic Cache Stampede Prevention" (VLDB 2015) | 📋 |
 | 04 | [Write-Through / Write-Behind — Số dư ví phải mới tức thì nhưng DB không chịu nổi mọi lần ghi](./04-write-through-write-behind-so-du-vi-can-moi-tuc-thi/) | 🟡 | AWS whitepaper "Database Caching Strategies Using Redis" (write-through); Azure Cache-Aside (so sánh); DDIA ch.7 (độ bền — durability của giao dịch) | 📋 |

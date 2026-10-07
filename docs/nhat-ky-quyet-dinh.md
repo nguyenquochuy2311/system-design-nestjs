@@ -153,3 +153,15 @@ lưu bộ đếm.
 
 **Lý do:** (1) ở bài 08/02, test dựng web chung tiến trình lúc bắt được lúc không bắt được lúc treo (một lần chỉ thấy 75 ms). (2) bản "trước" có p99 86 – 136 ms nhưng lớn nhất 1,7 – 4,4 s. (3) với 50 VU cấp sẵn, k6 bỏ 134 lượt đúng lúc server treo; với 400 VU thì 0. (4) kiểm thử trực tiếp.
 **Ảnh hưởng:** các bài về hàng đợi, giám sát và tải (scope 13, 14, 18, 23) theo các điểm trên khi đo độ trễ dưới tải có lúc treo.
+
+## 2026-10-07 — Quy ước lab rút ra từ bài 03/01 (Cache-Aside)
+
+**Quyết định**
+1. Lab dùng Redis làm cache chạy `redis:7` với cấu hình tường minh: `--save "" --appendonly no --maxmemory <n> --maxmemory-policy allkeys-lru` (bài 03/01: 1 GB). Image chạy không file cấu hình có `save 3600 1 300 100 60 10000`, `maxmemory 0`, `maxmemory-policy noeviction` (đã kiểm bằng `CONFIG GET`): đầy bộ nhớ thì `SET` báo lỗi thay vì evict, và lần khởi động lại có thể nạp bản cache cũ từ RDB. Bài cần Redis giữ dữ liệu (lock, bộ đếm, write-behind) thì ghi cấu hình riêng ở mục 4 của bài.
+2. Client Redis cho cache trong lab: `ioredis` ghim phiên bản (bài 03/01: 6.0.0), đặt `commandTimeout` (bài 03/01: 50 ms), `enableOfflineQueue: false`, `maxRetriesPerRequest: 0`, `retryStrategy` có trần ngắn, và luôn gắn listener `error`. Với cấu hình mặc định, request treo quá 2 giây khi Redis không kết nối được và chờ hết thời gian Redis treo (phép thử âm của bài 03/01).
+3. `commandTimeout` của ioredis đếm thời gian trong tiến trình Node: event loop khựng lâu hơn timeout thì lệnh tới Redis đang khỏe vẫn có thể báo hết giờ (bài 03/01: chặn ≥ 60 ms thì 10/20 lần). Lab đo cache ghi riêng số lượt bỏ qua cache vì lỗi hay timeout (counter, header) bên cạnh hit ratio, không gộp vào "miss".
+4. CPU container đo bằng hiệu `usage_usec` trong `/sys/fs/cgroup/cpu.stat` (đọc qua `docker compose exec`) giữa các lần lấy mẫu, 100 % = một nhân. Container khởi động lại thì bộ đếm về 0: bỏ khoảng có hiệu âm. Mỗi mẫu ghi kèm load 1 phút của macOS; lượt trùng lúc load host tăng vọt hoặc có `dropped_iterations` > 0 thì chạy lại dưới tên khác và giữ file cũ, README ghi cả hai.
+5. Script phép thử âm phải kiểm tổng số test của lượt "đã gỡ pattern" lớn hơn 0: sửa mã nguồn thành cú pháp sai làm Vitest báo 0 test, trông như "không test nào đỏ".
+
+**Lý do:** (1) và (2) kiểm trực tiếp trong bài 03/01. (3) lượt đo dưới tải có lượt `BYPASS` dù Redis vẫn khỏe (2 trên 100.001 request ở lượt 10 phút, 321 trong vài giây ở một lần máy khựng), và script `bench/event-loop-stall.ts` tái hiện được. (4) bộ đếm cgroup của Redis về 0 sau `docker compose start` làm CPU tính bằng hiệu đầu – cuối ra số âm; hai lượt đo của bài trùng lúc load macOS lên 16 – 19. (5) gặp thật khi viết phép thử âm "ioredis mặc định".
+**Ảnh hưởng:** các bài còn lại của scope 03 và các bài dùng Redis ở scope 13, 22 theo (1)–(3); mọi lab báo CPU container theo (4); mọi lab có phép thử âm theo (5). Bài đã xong không sửa lại.

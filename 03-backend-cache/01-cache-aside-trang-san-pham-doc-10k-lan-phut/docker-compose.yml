@@ -1,0 +1,47 @@
+# Lab Cache-Aside:
+# - postgres: PostgreSQL 16, bật pg_stat_statements để đếm số lần câu truy vấn trang sản phẩm chạm DB.
+# - redis: Redis 7 làm cache thuần: không lưu xuống đĩa (--save "" --appendonly no) nên khởi động lại là cache trống,
+#   giới hạn bộ nhớ và chính sách evict ghi rõ (README mục 3.4).
+# Cổng host theo bảng cổng của lab: 55432 (PostgreSQL), 56379 (Redis). API (3100) chạy trên host.
+name: lab-03-01
+
+services:
+  postgres:
+    image: postgres:16
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=top
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: catalog
+    ports:
+      - "55432:5432"
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro # pnpm db:seed chạy seed.sql bằng psql trong container
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init.sql server tạm chỉ nghe Unix socket (nhật ký quyết định, bài 02/04).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d catalog"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
