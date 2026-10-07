@@ -1,0 +1,47 @@
+# Lab Background Jobs trong monolith:
+# - postgres: PostgreSQL 16.15 có sẵn extension PGMQ 1.13.0 (image chính thức của dự án PGMQ, dựng trên postgres:16).
+# - s3: RustFS 1.0.1, dịch vụ S3-compatible thay MinIO (image minio/minio không kéo được trên máy này, xem README mục 4).
+# Cổng host theo bảng cổng của lab: 55432 (PostgreSQL), 59000 (S3-compatible). Web (3100) và worker chạy trên host.
+name: lab-08-02
+
+services:
+  postgres:
+    image: ghcr.io/pgmq/pg16-pgmq:v1.13.0
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: sales
+    ports:
+      - "55432:5432"
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro # pnpm db:seed chạy seed.sql bằng psql trong container
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init.sql server tạm chỉ nghe Unix socket (nhật ký quyết định, bài 02/04).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d sales"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  s3:
+    image: rustfs/rustfs:1.0.1
+    environment:
+      RUSTFS_ACCESS_KEY: labaccess
+      RUSTFS_SECRET_KEY: labsecret123
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+    ports:
+      - "59000:9000"
+    volumes:
+      - s3data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+  s3data:

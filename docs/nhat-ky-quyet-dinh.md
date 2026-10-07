@@ -119,3 +119,37 @@ lưu bộ đếm.
 
 **Lý do:** (1) đã kiểm bằng `Reflect.getMetadata` dưới cả hai công cụ trong bài 08/01; (2) phiên bản kiểm từ `peerDependencies` và `engines` trên registry; (3) và (5) gặp thật khi đo bài 08/01; (4) cho số đo lặp lại được và không để sót thay đổi trong mã nguồn.
 **Ảnh hưởng:** Các bài còn lại của scope 08 và scope 09 (ranh giới module) theo (1)–(4). Các bài đã xong của scope 02 không đổi.
+
+## 2026-10-07 — Dịch vụ S3-compatible thay MinIO cho các lab (rút ra từ bài 08/02)
+
+**Quyết định**
+1. Lab cần object storage dùng RustFS, ghim tag `rustfs/rustfs:1.0.1`: một container, cổng host 59000 (bảng cổng của skill), khóa qua `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`, volume `/data`, healthcheck `curl -fsS http://127.0.0.1:9000/health`. Client `@aws-sdk/client-s3` đặt `forcePathStyle: true`, vì RustFS chỉ nhận virtual-hosted-style khi cấu hình `RUSTFS_SERVER_DOMAINS`. Mẫu: `docker-compose.yml` và `src/shared/object-storage.ts` của bài 08/02.
+2. Bài cần một thao tác S3 nằm ngoài danh sách "đã kiểm" dưới đây thì phải kiểm thao tác đó trên RustFS bằng script chạy thật trước khi dựa vào nó (mẫu `bench/s3-compat-check.ts` của bài 08/02), rồi ghi kết quả vào mục 4 của bài. Không giả định RustFS giống AWS S3 hay MinIO ở thao tác chưa kiểm. Thao tác không đạt thì ghi lại và chọn thay thế bằng một mục mới trong nhật ký.
+3. Lab cần PGMQ dùng image `ghcr.io/pgmq/pg16-pgmq:v1.13.0` của dự án PGMQ: PostgreSQL 16.15 dựng trên `postgres:16`, PGMQ 1.13.0, có arm64. Ghim tag, không dùng `latest`. Cách cài SQL-only lên `postgres:16` chưa thử.
+
+**Đã kiểm** (2026-10-07, RustFS 1.0.1, AWS SDK v3 3.1147.0 với cấu hình checksum mặc định, 13/13 đạt, `bench/results/main/s3-compat.json` của bài 08/02):
+- CreateBucket / HeadBucket idempotent; PutObject.
+- Upload stream qua `@aws-sdk/lib-storage`: 1 MiB (một part) và 12 MiB (multipart 3 part, ETag hậu tố `-3`); ghi đè cùng khóa.
+- Presigned GET tải bằng curl, khớp sha256; `ResponseContentDisposition` được trả về.
+- Presigned GET với TTL 5 s: còn hạn ở giây thứ 3, hết hạn ở giây thứ 7 (403 `AccessDenied`, "Request has expired").
+- Chữ ký bị sửa và ký bằng secret sai đều trả 403 `SignatureDoesNotMatch`.
+- Presigned PUT bằng curl; GET sau `DeleteObject` trả 404 `NoSuchKey`.
+
+**Chưa kiểm:**
+- Lifecycle (hết hạn object, hủy multipart dở), Versioning, Object Lock / retention, CORS, SSE / KMS, presigned POST (form upload).
+- Multipart gọi tay (`CreateMultipartUpload` / `UploadPart` / `ListParts` / `AbortMultipartUpload`, cần cho upload tiếp tục), vì lab chỉ đi qua `lib-storage`.
+- Virtual-hosted-style, IAM user / policy ngoài khóa root, nhiều node / erasure coding, client `mc` hay `aws` CLI.
+
+**Lý do:** `minio/minio` trên Docker Hub trả "denied", `quay.io/minio/minio` không còn tag nào (người điều phối kiểm ngày 2026-10-06). Trong các image kéo được, RustFS chạy một container với hai biến môi trường giống cách cấu hình MinIO, và đạt mọi thao tác bài 08/02 cần. Các image còn lại (`localstack/localstack`, `chrislusf/seaweedfs`, `dxflrs/garage`, `ghcr.io/versity/versitygw`, `adobe/s3mock`) không thử trong phiên này, nên chưa có so sánh giữa chúng.
+**Ảnh hưởng:** scope 15 (presigned upload, multipart / resumable, lifecycle...) và các bài khác cần object storage dùng RustFS; bài cần thao tác trong danh sách "chưa kiểm" phải kiểm theo (2) trước. Chỗ nhắc MinIO trong README các bài chưa làm không sửa (phiên này không được sửa bài khác); khi làm bài nào thì ghi lệch ở mục 4 của bài đó. AWS SDK v3 cảnh báo các bản phát hành sau tuần đầu tháng 1/2027 sẽ đòi Node ≥ 22: lab trên Node 20 ghim phiên bản SDK.
+
+## 2026-10-07 — Quy ước đo rút ra từ bài 08/02 (Background Jobs)
+
+**Quyết định**
+1. Đo hay test hiện tượng event loop bị chặn thì tiến trình bị đo (web) phải chạy riêng với client đo; RSS lấy từ bên ngoài bằng `ps`. Không dựng app trong cùng tiến trình với Vitest cho phép đo này.
+2. Khi báo event loop delay từ `perf_hooks.monitorEventLoopDelay`, ghi cả giá trị lớn nhất bên cạnh p99, và ghi rằng giá trị thô gồm chu kỳ lấy mẫu (resolution). Một lần bị chặn nhiều giây chỉ là một mẫu, nên p99 có thể thấp trong lúc server treo.
+3. Kịch bản k6 mô hình mở (`constant-arrival-rate`) mà server có thể treo nhiều giây thì đặt `preAllocatedVUs` đủ cho số request dồn lại (tốc độ × thời gian treo), và kiểm `dropped_iterations` = 0 trước khi dùng số. Độ trễ tính trên request thành công; request lỗi đếm riêng theo `error_code`.
+4. Thời điểm của mẫu `http_req_duration` trong `--out json` của k6 là lúc request kết thúc. Lọc request theo cửa sổ thời gian thì lấy lúc bắt đầu = `time − value` (đã kiểm bằng server chờ 2 giây).
+
+**Lý do:** (1) ở bài 08/02, test dựng web chung tiến trình lúc bắt được lúc không bắt được lúc treo (một lần chỉ thấy 75 ms). (2) bản "trước" có p99 86 – 136 ms nhưng lớn nhất 1,7 – 4,4 s. (3) với 50 VU cấp sẵn, k6 bỏ 134 lượt đúng lúc server treo; với 400 VU thì 0. (4) kiểm thử trực tiếp.
+**Ảnh hưởng:** các bài về hàng đợi, giám sát và tải (scope 13, 14, 18, 23) theo các điểm trên khi đo độ trễ dưới tải có lúc treo.

@@ -1,0 +1,50 @@
+{
+  "name": "background-job-monolith-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 08/02: Background Jobs trong monolith (Asynchronous Request-Reply + PGMQ + worker process) trên NestJS 10, PostgreSQL 16, S3-compatible (RustFS)",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U app -d sales -v ON_ERROR_STOP=1 -f /lab/db/seed.sql",
+    "db:psql": "docker compose exec postgres psql -U app -d sales",
+    "db:reset": "docker compose down -v",
+    "dev:web": "tsx src/main.web.ts",
+    "dev:worker": "tsx src/main.worker.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:s3": "tsx bench/s3-compat-check.ts",
+    "bench:drills": "tsx bench/negative-drills.ts",
+    "bench:load": "tsx bench/export-while-ordering.ts",
+    "bench:memory": "tsx bench/export-memory.ts",
+    "bench:kill": "tsx bench/worker-kill.ts",
+    "bench:clicks": "tsx bench/repeated-clicks.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1147.0",
+    "@aws-sdk/lib-storage": "3.1147.0",
+    "@aws-sdk/s3-request-presigner": "3.1147.0",
+    "@nestjs/common": "10.4.22",
+    "@nestjs/core": "10.4.22",
+    "@nestjs/platform-express": "10.4.22",
+    "exceljs": "4.4.0",
+    "kysely": "0.29.6",
+    "pg": "8.23.1",
+    "pg-cursor": "2.22.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "10.4.22",
+    "@types/express": "^4.17.25",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "@types/pg-cursor": "2.7.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

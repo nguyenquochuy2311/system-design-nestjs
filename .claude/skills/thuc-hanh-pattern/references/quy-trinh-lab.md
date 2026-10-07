@@ -25,7 +25,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 
 | Dịch vụ | Cổng host |
 |---|---|
-| PostgreSQL (bản chính) | 55432 |
+| PostgreSQL (bản chính; cần PGMQ thì `ghcr.io/pgmq/pg16-pgmq:v1.13.0`) | 55432 |
 | PostgreSQL thứ hai (replica, service B...) | 55433, 55434 |
 | PgBouncer (instance thứ hai) | 56432 (56433) |
 | Redis | 56379 (nút thêm: 56380, 56381) |
@@ -33,7 +33,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | Kafka | 59092 |
 | NATS | 54222 |
 | Elasticsearch / OpenSearch | 59200 |
-| S3-compatible (thay MinIO) | 59000 |
+| S3-compatible: RustFS `rustfs/rustfs:1.0.1` (thay MinIO; xem nhật ký 2026-10-07 về thao tác đã kiểm / chưa kiểm) | 59000 |
 | Keycloak | 58080 |
 | Prometheus / Grafana | 59090 / 53000 |
 | OTel Collector (gRPC / HTTP) | 54317 / 54318 |
