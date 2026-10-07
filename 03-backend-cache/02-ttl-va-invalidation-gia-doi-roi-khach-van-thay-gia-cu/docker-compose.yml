@@ -1,0 +1,47 @@
+# Lab Cache Invalidation (bài 03/02):
+# - postgres: PostgreSQL 16, bật pg_stat_statements để đếm câu truy vấn trang và câu của worker; chứa bảng outbox.
+# - redis: Redis 7 làm cache thuần (nhật ký quyết định, bài 03/01): không lưu xuống đĩa, giới hạn bộ nhớ và chính sách
+#   evict ghi rõ. Cache trang và chỉ mục ngược tag:product:<id> cùng nằm ở đây.
+# Cổng host theo bảng cổng của lab: 55432 (PostgreSQL), 56379 (Redis). API (3100), worker và job khuyến mãi chạy trên host.
+name: lab-03-02
+
+services:
+  postgres:
+    image: postgres:16
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=top
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: shop
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro # pnpm db:seed chạy seed.sql bằng psql trong container
+      - ./sql:/lab/sql:ro # pnpm job:csv chạy job nhập giá bằng psql trong container
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init.sql server tạm chỉ nghe Unix socket (nhật ký quyết định, bài 02/04).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d shop"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

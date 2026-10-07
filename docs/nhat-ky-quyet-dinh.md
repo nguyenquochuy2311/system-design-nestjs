@@ -165,3 +165,15 @@ lưu bộ đếm.
 
 **Lý do:** (1) và (2) kiểm trực tiếp trong bài 03/01. (3) lượt đo dưới tải có lượt `BYPASS` dù Redis vẫn khỏe (2 trên 100.001 request ở lượt 10 phút, 321 trong vài giây ở một lần máy khựng), và script `bench/event-loop-stall.ts` tái hiện được. (4) bộ đếm cgroup của Redis về 0 sau `docker compose start` làm CPU tính bằng hiệu đầu – cuối ra số âm; hai lượt đo của bài trùng lúc load macOS lên 16 – 19. (5) gặp thật khi viết phép thử âm "ioredis mặc định".
 **Ảnh hưởng:** các bài còn lại của scope 03 và các bài dùng Redis ở scope 13, 22 theo (1)–(3); mọi lab báo CPU container theo (4); mọi lab có phép thử âm theo (5). Bài đã xong không sửa lại.
+
+## 2026-10-07 — Quy ước đo rút ra từ bài 03/02 (Cache Invalidation)
+
+**Quyết định**
+1. Đo độ cũ của cache bằng poll thì chỉ coi trang "đã mới" khi câu trả lời mang giá trị mới **và** đến từ cache (`HIT`/`MISS`), không tính câu trả lời bỏ qua cache (`BYPASS`: Redis lỗi hay quá timeout nên đọc thẳng DB). Mốc của mỗi lần đổi là lúc lệnh ghi trả về; với job theo lịch là giờ trong lịch.
+2. Bên cạnh poll, API ghi nhật ký câu trả lời có chứa bản ghi đang theo dõi (chỉ bật khi đo, `WATCH_IDS` + `WATCH_LOG`) để đếm request của tải thật nhận giá trị cũ và phát hiện trang "mới rồi lại cũ". Mẫu: `src/shared/watch-log.ts` và phần tổng hợp trong `bench/run-scenario.ts` của bài 03/02.
+3. So hit ratio giữa hai bản: k6 chọn URL bằng hàm băm của `exec.scenario.iterationInTest` thay vì `Math.random` (hai bản nhận cùng một chuỗi request); request của script đo gắn header riêng (`X-Client: probe`) và counter có nhãn `client`; lượt dùng để so hit ratio tắt poll, vì lượt poll ngay sau mỗi lần xóa key thường là request trượt đầu tiên và "nhận hộ" phần trượt thêm.
+4. Tái hiện "đọc chen giữa" (một lượt đọc lấy dữ liệu cũ từ DB rồi ghi vào cache sau lần xóa) bằng proxy TCP giữ kết quả PostgreSQL trả cho app (`test/support/db-proxy.ts` của bài 03/02), không chèn móc test vào mã nguồn.
+5. Khoảng TTL có jitter tính bằng số nguyên (`Math.ceil(900 * (1 + 10 / 100))` là 991 trong số thực).
+
+**Lý do:** (1) lượt đo đầu của bài 03/02 trùng lúc load macOS lên 25: Redis quá 50 ms ở 343 lượt, script poll dừng sớm và nhật ký API ghi 8.525 câu trả lời giá cũ sau đó. (3) ở lượt có poll, bản có invalidation có ít lần trượt của k6 hơn bản không có (8.174 so với 8.194); 3 vòng không poll cho chênh 77 – 82 lần trượt, ổn định giữa các vòng. (4) và (5) gặp khi viết test của bài.
+**Ảnh hưởng:** các bài còn lại của scope 03 (stampede, write-through, hot key) và scope 04 (cache phía client) đo độ cũ hay hit ratio theo (1)–(3); test về thứ tự đọc/ghi giữa DB và cache dùng cách (4).
