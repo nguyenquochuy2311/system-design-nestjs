@@ -66,6 +66,10 @@ pattern đánh dấu `// [PATTERN]`. Tên file tiếng Anh kebab-case, comment t
   tải (VUs, thời gian), bảng kết quả, và đối chiếu với từng mục tiêu ("đạt", "không đạt", "chưa đo").
 - Số đo thô ghi vào `bench/results/` (không commit). Ghi rõ hạn chế: seed nhỏ hơn mục 1, chạy chung máy, ít mẫu.
 - Không suy diễn vượt bằng chứng: nếu không tách được nguyên nhân, viết "chưa tách riêng được".
+- k6: URL có id thì đặt tag `name` cố định cho từng endpoint (ví dụ `PATCH /shipments/:id`), nếu không k6 tạo
+  một chuỗi số liệu cho mỗi id, tốn RAM/CPU ngay trên máy đang chạy API và làm bẩn số đo (bài 02/02).
+- So một overhead nhỏ (cỡ ≤ 1 ms): chạy nhiều vòng, xoay thứ tự, có warm-up; ghi trung vị kèm thấp nhất – cao nhất
+  và chênh lệch theo từng vòng. Chênh nhỏ hơn dao động giữa các vòng thì ghi "không thấy vượt mức nhiễu".
 
 ## 6. Hoàn tất
 
@@ -83,3 +87,19 @@ pattern đánh dấu `// [PATTERN]`. Tên file tiếng Anh kebab-case, comment t
 - Không sửa bài khác, skill hay script nếu không được giao; không commit hay push.
 - Không đổi số "trước (minh họa)" thành số đo; không ghi số chưa đo.
 - Không cài phần mềm hệ thống ngoài công cụ dev mà bài cần (Homebrew formula, package npm trong project).
+
+## 8. Kiểm chứng rồi mới commit và push (mỗi bài một commit)
+
+Người sở hữu repo yêu cầu: **dựng code và dịch vụ dưới local, kiểm chứng, rồi mới commit và push** — từng bài một.
+Người làm lab không tự commit; người điều phối (hoặc chính phiên Claude chính) làm các bước sau:
+
+1. **Chạy lại độc lập** theo đúng "Cách chạy" trong README bài, từ volume sạch (`docker compose down -v` trước):
+   dựng dịch vụ, seed, `pnpm typecheck`, `pnpm test`. Phải pass; không pass thì không commit.
+2. **Đối chiếu số đo**: các số ở mục 5.1 phải khớp file thô trong `bench/results/` (hoặc output đã ghi lại);
+   số nào không truy được nguồn thì sửa README hoặc đo lại.
+3. **Lint**: `node scripts/kiem-tra-readme.mjs` 0 lỗi; `node scripts/tao-tien-do.mjs` sinh lại.
+4. **Dọn dẹp**: `docker compose down -v`, không còn tiến trình nghe ở cổng của lab.
+5. **Commit chọn lọc**: chỉ thư mục của bài và các file dùng chung liên quan (README scope, `TIEN-DO.md`,
+   nhật ký); không `git add -A` khi có lab khác đang dở. Kiểm `git diff --cached --name-only` không lọt
+   `node_modules/`, `bench/results/`, `.env`. Message: `feat(SS/NN): lab <pattern>, số đo thật`.
+6. **Push** lên `origin main`, xác nhận `git status -sb` báo đồng bộ với `origin/main`.

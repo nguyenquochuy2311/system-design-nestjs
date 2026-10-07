@@ -1,0 +1,28 @@
+# Lab Optimistic Offline Lock: PostgreSQL 16 bật pg_stat_statements để so thời gian thực thi của câu UPDATE
+# trước (WHERE id) và sau (WHERE id AND version). Cổng 55432 (không dùng 5432) để không đụng dự án khác trên máy.
+services:
+  postgres:
+    image: postgres:16
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: logistics
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d logistics"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

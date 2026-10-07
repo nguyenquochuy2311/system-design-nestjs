@@ -1,0 +1,34 @@
+{
+  "name": "optimistic-lock-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 02/02: Optimistic Offline Lock (cột version) chống lost update trên PostgreSQL 16",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U app -d logistics -v ON_ERROR_STOP=1 -v shipments=${SHIPMENTS:-10000} < db/seed-shipments.sql",
+    "db:migrate": "docker compose exec -T postgres psql -U app -d logistics -v ON_ERROR_STOP=1 < db/add-version-column.sql",
+    "db:stats-reset": "docker compose exec -T postgres psql -U app -d logistics -c 'SELECT pg_stat_statements_reset()'",
+    "db:stats": "docker compose exec -T postgres psql -U app -d logistics -v ON_ERROR_STOP=1 < db/save-statement-stats.sql",
+    "db:reset": "docker compose down -v",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:pairs": "tsx bench/concurrent-pairs.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
