@@ -1,0 +1,98 @@
+# Lab Connection Pooling: PostgreSQL 16 với max_connections = 100 (bằng 1/5 của 500 ở mục 1 README),
+# hai instance PgBouncer chế độ transaction đứng trước, N "pod" API (profile pods) và k6 (profile bench).
+# Cổng host: Postgres 55432, PgBouncer A 56432, PgBouncer B 56433 (không dùng cổng mặc định để không đụng dự án khác).
+# Pod và k6 không mở cổng ra host: chúng nói chuyện trong mạng của Compose.
+services:
+  postgres:
+    image: postgres:16
+    command:
+      - postgres
+      - -c
+      - max_connections=100 # trần kết nối, cố ý nhỏ để tái hiện "too many clients" trên laptop
+      - -c
+      - superuser_reserved_connections=3 # 3 chỗ giữ cho superuser: quản trị, đo pg_stat_activity khi DB đã đầy
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wallet
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Hai instance dùng chung một cấu hình: tổng kết nối thật = 2 × default_pool_size.
+  pgbouncer-a:
+    image: edoburu/pgbouncer:latest # đã kiểm: PgBouncer 1.26.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "56432:5432"
+    volumes:
+      - ./infra/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infra/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U wallet_app -d wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pgbouncer-b:
+    image: edoburu/pgbouncer:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "56433:5432"
+    volumes:
+      - ./infra/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infra/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U wallet_app -d wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # "Pod" API: N bản sao bằng `docker compose --profile pods up -d --scale api=N` (bench tự gọi). Chạy file
+  # dist/pod.mjs (pnpm build) đã gói sẵn fastify và pg. Cùng mạng với PostgreSQL/PgBouncer như pod trong cluster:
+  # các vòng gọi DB không đi qua proxy cổng của Docker Desktop (bước đo thử trên host cho thấy proxy là nút thắt).
+  api:
+    image: node:20-alpine
+    profiles: [pods]
+    command: ["node", "/app/pod.mjs"]
+    environment:
+      MODE: ${MODE:-sau} # truoc: pool 20 nối thẳng postgres; sau: pool 10 qua PgBouncer
+      POOL_MAX: ${POOL_MAX:-}
+      HOST: 0.0.0.0
+      PORT: 3100
+      DATABASE_URL_DIRECT: postgres://wallet_app:wallet_app@postgres:5432/wallet
+      PGBOUNCER_URLS: postgres://wallet_app:wallet_app@pgbouncer-a:5432/wallet,postgres://wallet_app:wallet_app@pgbouncer-b:5432/wallet
+      LOG_LEVEL: error
+    volumes:
+      - ./dist:/app:ro
+    # Pod không kết nối được DB lúc khởi động thì thoát mã 1; Docker khởi động lại với độ trễ tăng dần
+    # (gần với CrashLoopBackOff của Kubernetes).
+    restart: on-failure
+    depends_on:
+      pgbouncer-a:
+        condition: service_healthy
+      pgbouncer-b:
+        condition: service_healthy
+
+  # k6 chạy trong cùng mạng, gọi http://api:3100: DNS của Docker trả IP mọi bản sao, k6 chia kết nối theo vòng tròn
+  # (giống Service của Kubernetes). `docker compose run --rm k6 run ... /bench/transfer.k6.js`
+  k6:
+    image: grafana/k6:1.4.2
+    profiles: [bench]
+    working_dir: /
+    volumes:
+      - ./bench:/bench
+
+volumes:
+  pgdata:

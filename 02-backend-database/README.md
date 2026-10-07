@@ -40,7 +40,7 @@ flowchart TB
 |---|---|---|---|---|
 | 01 | [N+1 Query & Indexing — Trang danh sách 50 đơn hàng bắn 151 câu SQL](./01-n-plus-1-trang-50-don-ban-151-cau-sql/) | 🟢 | Rails Guides "Active Record Querying" (N+1); PostgreSQL docs "Using EXPLAIN"; Use The Index, Luke | ✅ |
 | 02 | [Optimistic Offline Lock — Hai nhân viên cùng sửa một đơn, người lưu sau ghi đè người lưu trước](./02-optimistic-lock-hai-nhan-vien-cung-sua-mot-don/) | 🟢 | Fowler, *PoEAA* (2002): Optimistic Offline Lock, Pessimistic Offline Lock; PostgreSQL docs "Explicit Locking" | ✅ |
-| 03 | [Connection Pooling — 200 pod × 20 kết nối làm PostgreSQL cạn max_connections](./03-connection-pool-200-pod-dap-postgres/) | 🟡 | PgBouncer docs; PostgreSQL wiki "Number Of Database Connections" | 📋 |
+| 03 | [Connection Pooling — 200 pod × 20 kết nối làm PostgreSQL cạn max_connections](./03-connection-pool-200-pod-dap-postgres/) | 🟡 | PgBouncer docs; PostgreSQL wiki "Number Of Database Connections" |✅ |
 | 04 | [Audit Log & Soft Delete — Kiểm toán hỏi "ai đổi giá hợp đồng lúc nào", DB chỉ còn giá mới](./04-audit-log-ai-doi-gia-hop-dong-luc-nao/) | 🟡 | Fowler, "Audit Log" (eaaDev); Fowler, "Temporal Patterns"; PostgreSQL docs (trigger, JSONB) | 📋 |
 | 05 | [Read Replica — Báo cáo cuối tháng làm chậm việc tạo đơn](./05-read-replica-bao-cao-cuoi-thang-lam-cham-tao-don/) | 🟡 | PostgreSQL docs "High Availability, Load Balancing, and Replication"; Fowler, "Reporting Database"; DDIA ch.5 (replication lag) | 📋 |
 | 06 | [CQRS — Màn hình tổng hợp phải join 9 bảng, mô hình ghi và đọc ngày càng khác nhau](./06-cqrs-man-hinh-tong-hop-join-9-bang/) | 🔴 | Fowler bliki "CQRS" (2011); Greg Young, "CQRS Documents" (2010); Azure "CQRS", "Materialized View"; Fowler "Event Sourcing" (hướng mở) | 📋 |

@@ -27,7 +27,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 |---|---|
 | PostgreSQL (bản chính) | 55432 |
 | PostgreSQL thứ hai (replica, service B...) | 55433, 55434 |
-| PgBouncer | 56432 |
+| PgBouncer (instance thứ hai) | 56432 (56433) |
 | Redis | 56379 (nút thêm: 56380, 56381) |
 | RabbitMQ / UI | 55672 / 55673 |
 | Kafka | 59092 |
@@ -42,6 +42,11 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | Temporal | 57233 |
 | API của lab | 3100 (service thêm: 3101, 3102...) |
 | Frontend của lab | 5173 hoặc 3200 |
+
+Lab cần nhiều bản sao ứng dụng (pod): chạy pod trong container cùng mạng Compose với DB (`docker compose --scale`,
+code gói bằng esbuild, `node:20-alpine`), k6 trong container `grafana/k6` cùng mạng; không nối pod trên host qua cổng
+đã mở ra host (proxy cổng của Docker Desktop thành nút thắt). Ghi load average và % CPU của máy ảo Docker cho từng lượt.
+Mẫu: bài 02/03.
 
 ## 3. Cấu trúc project (theo bài mẫu)
 

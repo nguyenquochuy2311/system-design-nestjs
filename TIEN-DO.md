@@ -6,14 +6,14 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 191 | 0 | 2 |
+| 193 | 190 | 0 | 3 |
 
 ## Theo scope
 
 | Scope | Số bài | 🟢 | 🟡 | 🔴 | 📋 | 🔨 | ✅ |
 |---|---|---|---|---|---|---|---|
 | [01 · Giao tiếp Frontend ↔ Backend (`frontend / backend / transporter`)](./01-frontend-backend-transporter/) | 7 | 2 | 4 | 1 | 7 | 0 | 0 |
-| [02 · Cơ sở dữ liệu quan hệ (`backend / database`)](./02-backend-database/) | 9 | 2 | 3 | 4 | 7 | 0 | 2 |
+| [02 · Cơ sở dữ liệu quan hệ (`backend / database`)](./02-backend-database/) | 9 | 2 | 3 | 4 | 6 | 0 | 3 |
 | [03 · Cache phía backend (`backend / cache`)](./03-backend-cache/) | 6 | 2 | 2 | 2 | 6 | 0 | 0 |
 | [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 6 | 0 | 0 |
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
@@ -57,7 +57,7 @@
 |---|---|---|---|
 | [N+1 Query & Indexing — Trang danh sách 50 đơn hàng bắn 151 câu SQL](./02-backend-database/01-n-plus-1-trang-50-don-ban-151-cau-sql/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-06 |
 | [Optimistic Offline Lock — Hai nhân viên cùng sửa một đơn, người lưu sau ghi đè người lưu trước](./02-backend-database/02-optimistic-lock-hai-nhan-vien-cung-sua-mot-don/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-07 |
-| [Connection Pooling — 200 pod × 20 kết nối làm PostgreSQL cạn max_connections](./02-backend-database/03-connection-pool-200-pod-dap-postgres/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
+| [Connection Pooling — 200 pod × 20 kết nối làm PostgreSQL cạn max_connections](./02-backend-database/03-connection-pool-200-pod-dap-postgres/) | 🟡 Trung bình | ✅ Hoàn thành | 2026-10-07 |
 | [Audit Log & Soft Delete — Kiểm toán hỏi "ai đổi giá hợp đồng lúc nào", DB chỉ còn giá mới](./02-backend-database/04-audit-log-ai-doi-gia-hop-dong-luc-nao/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Read Replica — Báo cáo cuối tháng làm chậm việc tạo đơn](./02-backend-database/05-read-replica-bao-cao-cuoi-thang-lam-cham-tao-don/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [CQRS — Màn hình tổng hợp phải join 9 bảng, mô hình ghi và đọc ngày càng khác nhau](./02-backend-database/06-cqrs-man-hinh-tong-hop-join-9-bang/) | 🔴 Nâng cao | 📋 Kế hoạch | 2026-10-06 |

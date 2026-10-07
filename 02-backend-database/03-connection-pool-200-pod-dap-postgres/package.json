@@ -1,0 +1,34 @@
+{
+  "name": "connection-pool-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 02/03: Connection Pooling bằng PgBouncer (transaction mode) trước PostgreSQL 16 có max_connections nhỏ",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U postgres -d wallet -v ON_ERROR_STOP=1 -v wallets=${WALLETS:-100000} < db/seed-wallets.sql",
+    "db:connections": "docker compose exec -T postgres psql -U postgres -d wallet -v ON_ERROR_STOP=1 < db/connection-stats.sql",
+    "db:pools": "docker compose exec -T -e PGPASSWORD=pgbouncer_admin pgbouncer-a psql -h 127.0.0.1 -p 5432 -U pgbouncer_admin pgbouncer -c 'SHOW POOLS'",
+    "db:reset": "docker compose --profile pods --profile bench down -v",
+    "build": "node infra/build-pod.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:step": "tsx bench/run-step.ts",
+    "bench:summary": "tsx bench/summarize.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "esbuild": "0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

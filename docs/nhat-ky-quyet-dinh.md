@@ -86,3 +86,13 @@ lưu bộ đếm.
 
 **Lý do:** Lượt đo k6 đầu của bài 02/02 phải bỏ vì lỗi (1); chênh p95 giữa `UPDATE ... WHERE id` và `UPDATE ... WHERE id AND version` nhỏ hơn dao động giữa các vòng (2).
 **Ảnh hưởng:** Script k6 của các bài sau theo (1); mục 5.1 của bài có chỉ số overhead theo (2); phiên sau không "bổ sung" frontend cho bài 02/02 trừ khi được yêu cầu.
+
+## 2026-10-07 — Quy ước lab nhiều pod rút ra từ bài 02/03 (Connection Pooling)
+
+**Quyết định**
+1. Lab cần nhiều bản sao ứng dụng (pod) chạy chúng trong container cùng mạng Compose với DB: service nhân bản bằng `docker compose --scale`, code gói thành một file JS bằng esbuild, image `node:20-alpine`. Không chạy pod là tiến trình Node trên host rồi nối vào cổng đã mở ra host. k6 chạy trong container `grafana/k6` cùng mạng khi tải phải chia cho nhiều bản sao (DNS của Docker trả IP mọi bản sao, k6 `dns.select = roundRobin`).
+2. Instance thứ hai của PgBouncer dùng cổng host 56433 (bảng cổng trong `quy-trinh-lab.md` mới có 56432).
+3. Lượt đo nhiều bản sao ghi kèm load average và % CPU bận của máy ảo Docker (đọc `/proc/loadavg`, `/proc/stat` trong một container) để biết mức tranh CPU giữa pod, k6 và DB.
+
+**Lý do:** Đo thử ở bài 02/03, pod trên host gọi DB qua proxy cổng của Docker Desktop: `com.docker.backend` khoảng 124 % CPU, 22–29/30 kết nối PostgreSQL ở `ClientRead`, thông lượng chỉ khoảng 1/3 so với pod trong mạng Compose; số đo phản ánh proxy chứ không phải pattern. Ở 40 pod trên laptop 8 vCPU, load của máy ảo lên 15–45, nên số độ trễ cần đọc cùng mức tranh CPU.
+**Ảnh hưởng:** Bài cần nhiều bản sao (scope 16, 18...) theo (1) và (3). Bảng cổng trong skill chưa sửa (phiên này không được sửa skill); người sở hữu skill quyết định có bổ sung 56433 hay không.
