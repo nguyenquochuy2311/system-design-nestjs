@@ -101,6 +101,8 @@ một lựa chọn khác và nói vì sao không chọn; mục 3 (How) có tối
 sequence diagram; mục 5 (Impact) là bảng chỉ số có cột "cách đo"; mục 7 là nguồn.
 
 ### 6.3 Thực hành code cho một bài
+Làm theo `references/quy-trinh-lab.md` (cổng cố định, đo, phép thử âm, điều kiện ✅, dọn dẹp) và thứ tự
+ở `docs/thu-tu-thuc-hanh.md`. Tóm tắt:
 1. Đổi trạng thái sang 🔨, cập nhật ngày.
 2. Code trong `src/` theo `references/quy-uoc-code.md` (TypeScript strict, cấu trúc nhỏ gọn,
    test chứng minh pattern, `docker-compose.yml` cho hạ tầng, README mục 8 ghi cách chạy).
@@ -151,5 +153,6 @@ do ở mục 4 của README.
 | `references/quy-uoc-dat-ten.md` | Đặt tên thư mục, tiêu đề, mức độ, trạng thái |
 | `references/quy-uoc-so-do.md` | Vẽ hoặc sửa sơ đồ Mermaid |
 | `references/quy-uoc-code.md` | Bắt đầu code thực hành |
+| `references/quy-trinh-lab.md` | Thực hành một bài: dịch vụ, cổng, đo, test, điều kiện hoàn thành |
 | `references/nguon-tham-khao.md` | Tìm/thêm nguồn trích dẫn (danh mục chuẩn) |
 | `references/thuat-ngu.md` | Băn khoăn nên dịch hay giữ một thuật ngữ |

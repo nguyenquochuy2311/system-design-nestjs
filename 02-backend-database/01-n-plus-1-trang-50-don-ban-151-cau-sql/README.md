@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 02 · backend / database | 🟢 Cơ bản | 📋 Kế hoạch | N+1 Query (anti-pattern) & Indexing — Rails Guides "Active Record Querying"; Winand, *Use The Index, Luke* | 2026-10-06 |
+| 02 · backend / database | 🟢 Cơ bản | ✅ Hoàn thành | N+1 Query (anti-pattern) & Indexing — Rails Guides "Active Record Querying"; Winand, *Use The Index, Luke* | 2026-10-06 |
 
 > **Một câu tóm tắt:** Thay vì tải quan hệ của từng đơn trong vòng lặp (1 + 50 × 3 câu SQL), tải theo lô bằng một câu cho mỗi loại quan hệ và đặt index đúng trên cột khóa ngoại, để số câu SQL không còn tăng theo số dòng trên trang.
 
@@ -106,6 +106,7 @@ sequenceDiagram
 - **Index sai thứ tự cột.** Index `(created_at, order_id)` không giúp tra theo `order_id`; cột dùng để lọc bằng đẳng thức nên đứng đầu.
 - **`CREATE INDEX` thường trên bảng đang chạy** khóa ghi trong suốt thời gian tạo. Dùng `CONCURRENTLY` và kiểm tra index không ở trạng thái invalid nếu tạo thất bại.
 - **Mảng id quá lớn.** `ANY` với hàng chục nghìn id vẫn chạy nhưng kế hoạch có thể đổi; giữ kích thước lô theo kích thước trang.
+- **Đo trang đầu khi có ghi song song.** Trang 0 luôn là các đơn mới nhất nên thay đổi theo từng lần đặt hàng; test và đo nên nhắm đơn hoặc trang cố định.
 - **Đo trên dữ liệu nhỏ.** Với 1.000 dòng, quét tuần tự còn nhanh hơn index; phải seed gần quy mô thật mới thấy khác biệt.
 
 ## 4. Tech stack và tác động (Impact techstack)
@@ -119,6 +120,8 @@ sequenceDiagram
 | Seed | `generate_series` trong SQL | Sinh hàng chục triệu dòng nhanh | Script Node chèn theo lô |
 | Đo | k6, `EXPLAIN (ANALYZE, BUFFERS)` | p95 của trang và chi tiết từng câu | pgbench với script tùy biến |
 
+**Khi thực hành:** dùng Fastify thay NestJS vì lab chỉ cần hai route; Kysely, PostgreSQL 16, k6 và Vitest đúng như kế hoạch. `pg_stat_statements` bật bằng `shared_preload_libraries` trong `docker-compose.yml`.
+
 **Thay đổi so với hệ thống hiện tại:** sửa repository danh sách đơn sang tải theo lô, thêm hai index khóa ngoại, bật `pg_stat_statements`, thêm test đếm truy vấn. Đội học đọc `EXPLAIN` và thói quen soi số câu SQL mỗi request khi review.
 
 ## 5. Kết quả đầu ra và cách đo (Output impact)
@@ -131,8 +134,43 @@ sequenceDiagram
 | Buffer đọc cho một lần tải trang | hàng trăm nghìn | vài trăm | Tổng `Buffers: shared hit/read` của các câu |
 | p95 API đặt hàng khi trang quản trị chịu tải | 900 ms | không tăng quá 10 % so với khi không tải | k6 chạy song song hai kịch bản |
 
-> Số "trước" là minh họa để hình dung bài toán. Số "mục tiêu" chỉ được coi là đạt khi có số đo thật
-> ở mục 8 kèm môi trường đo.
+> Số "trước" là minh họa để hình dung bài toán. Số "mục tiêu" chỉ được coi là đạt khi có số đo thật;
+> số đã đo nằm ở mục 5.1 bên dưới, kèm môi trường đo.
+
+### 5.1 Số đã đo
+
+**Môi trường:** MacBook Apple M1 Pro (arm64, macOS Darwin 25.6.0); Docker 8 CPU, khoảng 7,6 GB RAM; PostgreSQL 16.14 trong container `postgres:16`, `shared_buffers` 128 MB (mặc định), `max_parallel_workers_per_gather` 2; Node v20.19.6; k6 v1.4.2. API, k6 và database chạy chung một máy nên tranh CPU: dùng để so sánh tương đối, không phải số tuyệt đối. Dữ liệu seed: 500.000 đơn, 1,5 triệu dòng sản phẩm, 450.000 bản ghi giao hàng, nhỏ hơn khoảng 30 lần so với kịch bản 15 triệu đơn ở mục 1. k6 chạy 10 người dùng ảo trong 30 giây mỗi kịch bản, trang ngẫu nhiên từ 0 đến 19 (kế hoạch ban đầu ghi 20 người, 5 phút).
+
+**Chi phí một lần tải trang** (trang 3; `pg_stat_statements` được reset ngay trước khi tải):
+
+| Cấu hình | Câu SQL | Buffer chạm | Thời gian thực thi trong DB | Cả request |
+|---|---|---|---|---|
+| Vòng lặp, không index | 151 | 782.108 | 1.726,1 ms | 1.983 ms |
+| Theo lô, không index | 4 | 15.800 | 52,9 ms | 62 ms |
+| Vòng lặp, có index | 151 | 559 | 4,2 ms | 95 ms |
+| Theo lô, có index | 4 | 470 | 0,4 ms | 30 ms |
+
+**Kế hoạch câu "lấy sản phẩm của một đơn"** (`EXPLAIN (ANALYZE, BUFFERS)`, đơn 250000): không index là Parallel Seq Scan, 12.218 buffer, khoảng 90 ms; có index là Index Scan trên `order_items_order_id_idx`, 6 buffer, 0,102 ms. Tạo cả hai index bằng `CREATE INDEX CONCURRENTLY` mất khoảng 1,6 giây trên seed này.
+
+**Danh sách đơn dưới tải** (k6, 10 người dùng ảo, 30 giây):
+
+| Cấu hình | Số request hoàn tất | Trung vị | p95 |
+|---|---|---|---|
+| Vòng lặp, không index | 40 | 7.971 ms | 10.793 ms |
+| Vòng lặp, có index | 2.655 | 103 ms | 156 ms |
+| Theo lô, không index | 1.174 | 235 ms | 424 ms |
+| Theo lô, có index | 37.309 | 6,5 ms | 14,3 ms |
+
+**Luồng đặt hàng của khách** (`POST /place-order`, 5 request/giây, 151 request mỗi kịch bản, pool kết nối riêng):
+
+| Kịch bản | p95 đặt hàng |
+|---|---|
+| Chỉ đặt hàng, chưa có index | 18,6 ms |
+| Cùng lúc với danh sách kiểu vòng lặp, chưa có index | 80,6 ms (gấp 4,3 lần) |
+| Chỉ đặt hàng, đã có index | 16,1 ms |
+| Cùng lúc với danh sách theo lô, đã có index | 17,3 ms (tăng 7 %) |
+
+**So với mục tiêu:** số câu SQL 151 xuống 4 (đạt ≤ 4); p95 danh sách 14,3 ms (đạt ≤ 150 ms, trên seed 500.000 đơn); kế hoạch chuyển từ Seq Scan sang Index Scan (đạt); buffer theo lô có index là 470 (đạt "vài trăm"); p95 đặt hàng tăng 7 % khi trang quản trị chịu tải (đạt ≤ 10 %, nhưng chỉ 151 mẫu nên sai số lớn). Chưa đo trên seed 15 triệu đơn.
 
 **Tác động nghiệp vụ mong đợi:** nhân viên vận hành xử lý đơn nhanh hơn, trang quản trị không còn kéo chậm luồng đặt hàng của khách, và hoãn được việc nâng cấp database.
 
@@ -163,30 +201,51 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: Docker Compose PostgreSQL 16 bật `pg_stat_statements`; seed 15 triệu đơn, 45 triệu dòng sản phẩm, không có index khóa ngoại.
-- [ ] Bước 2: đo "trước": API vòng lặp, đếm câu SQL mỗi request, `EXPLAIN (ANALYZE, BUFFERS)` câu items, k6 p95.
-- [ ] Bước 3: viết repository tải theo lô, tạo index bằng `CREATE INDEX CONCURRENTLY`, thêm bộ đếm truy vấn.
-- [ ] Bước 4: đo "sau" cùng kịch bản, kể cả kịch bản chạy song song với API đặt hàng; ghi số thật và môi trường vào mục 5.
-- [ ] Bước 5: viết test: (a) tải trang 50 đơn dùng tối đa 4 câu SQL; (b) kết quả của phiên bản theo lô giống hệt phiên bản vòng lặp; (c) kế hoạch câu items dùng index trên dữ liệu seed.
+- [x] Bước 1: Docker Compose PostgreSQL 16 bật `pg_stat_statements`; seed 500.000 đơn, 1,5 triệu dòng sản phẩm, không có index khóa ngoại.
+- [x] Bước 2: đo "trước": API vòng lặp, đếm câu SQL mỗi request, `EXPLAIN (ANALYZE, BUFFERS)` câu items, k6 p95.
+- [x] Bước 3: viết repository tải theo lô, tạo index bằng `CREATE INDEX CONCURRENTLY`, thêm bộ đếm truy vấn.
+- [x] Bước 4: đo "sau" cùng kịch bản, kể cả kịch bản chạy song song với API đặt hàng; số thật ở mục 5.1.
+- [x] Bước 5: test: (a) tải trang 50 đơn dùng tối đa 4 câu SQL; (b) kết quả phiên bản theo lô giống hệt phiên bản vòng lặp; (c) kế hoạch câu items dùng index trên dữ liệu seed.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 src/
-  truoc/order-list.naive-repository.ts     # vòng lặp, tái hiện N+1
-  sau/order-list.repository.ts             # [PATTERN] tải theo lô ANY ids
-  shared/query-counter.ts                  # đếm câu SQL mỗi request
+  truoc/order-list.naive-repository.ts     # vòng lặp, tái hiện N+1 (151 câu)
+  sau/order-list.repository.ts             # [PATTERN] tải theo lô ANY ids (4 câu)
+  shared/query-counter.ts                  # đếm câu SQL mỗi request (AsyncLocalStorage)
+  shared/db.ts, shared/order-list.ts       # Kysely + kiểu dữ liệu dùng chung
+  server.ts                                # Fastify: GET /orders, POST /place-order
 db/
-  seed-orders.sql
+  init.sql                                 # schema + pg_stat_statements, KHÔNG index khóa ngoại
+  seed-orders.sql                          # generate_series, chạy lại được
   add-foreign-key-indexes.sql              # CREATE INDEX CONCURRENTLY
+  drop-foreign-key-indexes.sql             # quay về trạng thái "trước" để đo lại
+  explain-items-by-order.sql, page-load-stats.sql
 test/
-  order-list-query-count.test.ts
-  order-list-same-result.test.ts
-bench/order-list.k6.js
-docker-compose.yml
+  order-list-query-count.test.ts           # 151 vs ≤ 4, hai request đồng thời không đếm lẫn
+  order-list-same-result.test.ts           # cùng dữ liệu, cùng thứ tự; shipment null
+  order-list-query-plan.test.ts            # kế hoạch dùng index, không Seq Scan
+bench/order-list.k6.js                     # MODE, VUS, DURATION, LIST, PLACE_RATE, NAME
+docker-compose.yml                         # postgres:16, cổng 55432
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy**
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+cd 02-backend-database/01-n-plus-1-trang-50-don-ban-151-cau-sql
+pnpm install
+pnpm db:up                 # Postgres 16 ở cổng 55432
+pnpm db:seed               # mặc định ORDERS=500000 CUSTOMERS=100000
+pnpm test                  # 9 test tích hợp; tự tạo index nếu chưa có
+pnpm dev                   # API ở http://127.0.0.1:3100 (terminal khác)
+pnpm db:unindex            # về trạng thái "trước" (để đo lại)
+k6 run -e MODE=naive -e VUS=10 -e DURATION=30s -e NAME=A-naive-no-index bench/order-list.k6.js
+pnpm db:index              # áp dụng pattern phần index; rồi đo lại với MODE=batch
 ```
+
+## Bài học sau khi làm
+
+- **Hai biện pháp sửa hai thứ khác nhau.** Tải theo lô sửa *số câu*, index sửa *chi phí mỗi câu*. Chỉ index: vẫn 151 câu, p95 156 ms, và trong 95 ms mỗi trang chỉ 4,2 ms nằm trong DB, phần còn lại là 151 vòng mạng và overhead của driver. Chỉ tải theo lô: 4 câu nhưng p95 424 ms vì vẫn quét tuần tự hai bảng lớn. Cả hai: p95 14,3 ms, đúng như hàng "Chỉ thêm index" ở bảng mục 2 dự đoán.
+- **N+1 trên bảng thiếu index còn làm hại cả luồng khác.** Luồng đặt hàng tách pool kết nối vẫn chậm gấp 4,3 lần khi trang quản trị chạy kiểu cũ; sau khi sửa, chênh lệch chỉ 7 %. Vì pool đã tách riêng, thiệt hại không đến từ việc tranh connection; trên một máy dùng chung, phần còn lại có thể là tranh chấp CPU/IO của database hoặc của máy, chưa tách riêng được.
+- **Bộ đếm truy vấn bắt được N+1 rẻ hơn mọi công cụ khác.** Test khẳng định đúng 151 câu và tối đa 4 câu chạy trong khoảng 2 giây; có thể đưa vào CI cho mọi màn hình danh sách.
+- **Lỗi gặp khi làm:** seed ban đầu tràn số nguyên ở phép nhân `g * 7919` (phải ép sang bigint); test "đơn không có giao hàng" ban đầu giả định trang 0 ổn định nên thất bại sau khi k6 tạo thêm đơn mới.
+- **Hạn chế của số đo:** seed nhỏ hơn mục 1 khoảng 30 lần; chạy chung một máy; 10 người dùng ảo và 30 giây; luồng đặt hàng chỉ 151 mẫu mỗi kịch bản; chưa thử `OFFSET` sâu hay MySQL.

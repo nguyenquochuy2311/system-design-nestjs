@@ -1,0 +1,32 @@
+{
+  "name": "n-plus-1-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 02/01: N+1 Query và Index khóa ngoại trên PostgreSQL 16",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U app -d shop -v ON_ERROR_STOP=1 -v orders=${ORDERS:-500000} -v customers=${CUSTOMERS:-100000} < db/seed-orders.sql",
+    "db:index": "docker compose exec -T postgres psql -U app -d shop -v ON_ERROR_STOP=1 < db/add-foreign-key-indexes.sql",
+    "db:unindex": "docker compose exec -T postgres psql -U app -d shop -v ON_ERROR_STOP=1 < db/drop-foreign-key-indexes.sql",
+    "db:reset": "docker compose down -v",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

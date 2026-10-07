@@ -38,7 +38,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [N+1 Query & Indexing — Trang danh sách 50 đơn hàng bắn 151 câu SQL](./01-n-plus-1-trang-50-don-ban-151-cau-sql/) | 🟢 | Rails Guides "Active Record Querying" (N+1); PostgreSQL docs "Using EXPLAIN"; Use The Index, Luke | 📋 |
+| 01 | [N+1 Query & Indexing — Trang danh sách 50 đơn hàng bắn 151 câu SQL](./01-n-plus-1-trang-50-don-ban-151-cau-sql/) | 🟢 | Rails Guides "Active Record Querying" (N+1); PostgreSQL docs "Using EXPLAIN"; Use The Index, Luke | ✅ |
 | 02 | [Optimistic Offline Lock — Hai nhân viên cùng sửa một đơn, người lưu sau ghi đè người lưu trước](./02-optimistic-lock-hai-nhan-vien-cung-sua-mot-don/) | 🟢 | Fowler, *PoEAA* (2002): Optimistic Offline Lock, Pessimistic Offline Lock; PostgreSQL docs "Explicit Locking" | 📋 |
 | 03 | [Connection Pooling — 200 pod × 20 kết nối làm PostgreSQL cạn max_connections](./03-connection-pool-200-pod-dap-postgres/) | 🟡 | PgBouncer docs; PostgreSQL wiki "Number Of Database Connections" | 📋 |
 | 04 | [Audit Log & Soft Delete — Kiểm toán hỏi "ai đổi giá hợp đồng lúc nào", DB chỉ còn giá mới](./04-audit-log-ai-doi-gia-hop-dong-luc-nao/) | 🟡 | Fowler, "Audit Log" (eaaDev); Fowler, "Temporal Patterns"; PostgreSQL docs (trigger, JSONB) | 📋 |
