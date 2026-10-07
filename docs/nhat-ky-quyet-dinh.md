@@ -107,3 +107,15 @@ lưu bộ đếm.
 
 **Lý do:** Bài 02/04 gặp lỗi `could not resize shared memory segment` khi `VACUUM` nhật ký 400.000 dòng (2). Ở (4), trigger chỉ tốn khoảng 0,1 ms trong DB, nhưng `withActor` thêm ba vòng gọi làm p50 qua API tăng khoảng 1,9 ms. Với (1), lab chưa gặp lỗi thật, nhưng đã thấy `listen_addresses=''` trong entrypoint của image.
 **Ảnh hưởng:** Bài sau có PostgreSQL theo (1); bài có bảng lớn theo (2). `docker-compose.yml` của bài 02/01–02/03 chưa sửa (phiên này không được sửa bài khác).
+
+## 2026-10-07 — Quy ước lab rút ra từ bài 08/01 (Layered Architecture)
+
+**Quyết định**
+1. Lab dùng NestJS ghi `@Inject(<token hoặc lớp>)` tường minh cho mọi tham số constructor. `tsx` (esbuild) không phát metadata `design:paramtypes`, còn Vitest 5 (oxc) thì có, nên DI dựa vào kiểu tham số chạy đúng trong test nhưng không tiêm được khi chạy `pnpm dev`.
+2. Lab cần ESLint cho TypeScript dùng TypeScript 5.9.x thay vì 7, vì `typescript-eslint` 8.71 chỉ nhận TypeScript `<6.1`. Lab dùng dependency-cruiser trên Node 20 chọn bản 17.x, vì bản 18 đòi Node ≥ 22. Ghi lệch này ở mục 4 của bài.
+3. Cổng CI bằng dependency-cruiser dùng reporter mặc định (`err`, thoát mã bằng số lỗi). `--output-type json` thoát mã 0 dù có vi phạm, chỉ dùng để lấy số liệu. Luật cấm thư viện viết theo đoạn `(^|/)node_modules/<gói>/` vì dưới pnpm đường dẫn đã phân giải nằm trong `node_modules/.pnpm/...`.
+4. Bài về cấu trúc code đo "số chỗ phải sửa khi đổi một quy tắc" và phép thử âm bằng script sửa mã nguồn tạm thời (mỗi chuỗi cần sửa phải xuất hiện đúng một lần), chạy test hoặc công cụ, rồi khôi phục và so lại nội dung file (mẫu: `bench/mutation-drills.ts` của bài 08/01), không đếm bằng tay.
+5. Phần trăm độ phủ ghi trong README tính từ phân số trong `coverage-summary.json`; báo cáo dạng text của Vitest coverage cắt bớt chữ số (135/146 hiện 92,46 thay vì 92,47).
+
+**Lý do:** (1) đã kiểm bằng `Reflect.getMetadata` dưới cả hai công cụ trong bài 08/01; (2) phiên bản kiểm từ `peerDependencies` và `engines` trên registry; (3) và (5) gặp thật khi đo bài 08/01; (4) cho số đo lặp lại được và không để sót thay đổi trong mã nguồn.
+**Ảnh hưởng:** Các bài còn lại của scope 08 và scope 09 (ranh giới module) theo (1)–(4). Các bài đã xong của scope 02 không đổi.

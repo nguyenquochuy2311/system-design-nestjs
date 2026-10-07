@@ -33,7 +33,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [Layered Architecture — Logic nghiệp vụ nằm trong controller, không test được, sửa một chỗ hỏng ba chỗ](./01-layered-architecture-logic-nam-trong-controller/) | 🟢 | Fowler, *PoEAA* (2002): Layering, Service Layer, Repository; NestJS docs (module/controller/provider) | 📋 |
+| 01 | [Layered Architecture — Logic nghiệp vụ nằm trong controller, không test được, sửa một chỗ hỏng ba chỗ](./01-layered-architecture-logic-nam-trong-controller/) | 🟢 | Fowler, *PoEAA* (2002): Layering, Service Layer, Repository; NestJS docs (module/controller/provider) | ✅ |
 | 02 | [Background Jobs in a Monolith — Xuất Excel 50k dòng làm treo tiến trình web](./02-background-job-trong-monolith-xuat-excel-lam-treo-web/) | 🟢 | 12factor.net "Processes", "Concurrency"; Azure "Asynchronous Request-Reply"; BullMQ / PGMQ docs | 📋 |
 | 03 | [Transaction Script vs Domain Model — Hàm tính phí bảo hiểm 1.200 dòng if/else không ai dám sửa](./03-domain-model-vs-transaction-script-tinh-phi-bao-hiem-1200-dong/) | 🟡 | Fowler, *PoEAA*: Transaction Script, Domain Model, Service Layer; Evans, *DDD* (Value Object, Aggregate) | 📋 |
 | 04 | [Hexagonal Architecture (Ports & Adapters) — Đổi cổng thanh toán phải sửa 20 file nghiệp vụ](./04-hexagonal-architecture-doi-cong-thanh-toan-phai-sua-20-file/) | 🟡 | Alistair Cockburn, "Hexagonal architecture" (2005); Robert C. Martin, *Clean Architecture* (2017) | 📋 |

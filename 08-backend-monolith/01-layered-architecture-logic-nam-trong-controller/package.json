@@ -1,0 +1,55 @@
+{
+  "name": "layered-architecture-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 08/01: Layered Architecture (Service Layer + Repository) trên NestJS 10, Kysely, PostgreSQL 16",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U app -d distribution -v ON_ERROR_STOP=1 -f /lab/db/seed.sql",
+    "db:psql": "docker compose exec postgres psql -U app -d distribution",
+    "db:reset": "docker compose down -v",
+    "dev": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:arch": "vitest run --project arch",
+    "test:e2e": "vitest run --project e2e",
+    "coverage": "vitest run --project unit --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/sau src/shared",
+    "depcruise": "depcruise src/sau --config .dependency-cruiser.cjs",
+    "depcruise:truoc": "depcruise src/truoc --config .dependency-cruiser.cjs",
+    "bench:metrics": "tsx bench/code-metrics.ts",
+    "bench:test-time": "tsx bench/test-time.ts",
+    "bench:drills": "tsx bench/mutation-drills.ts",
+    "bench:over-limit": "tsx bench/over-limit-scenario.ts",
+    "bench:http": "tsx bench/http-overhead.ts",
+    "bench:sql": "tsx bench/sql-per-order.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.22",
+    "@nestjs/core": "10.4.22",
+    "@nestjs/platform-express": "10.4.22",
+    "kysely": "0.29.6",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "10.4.22",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "7.2.1",
+    "@vitest/coverage-v8": "5.0.3",
+    "dependency-cruiser": "17.4.3",
+    "eslint": "10.12.0",
+    "supertest": "7.3.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  }
+}

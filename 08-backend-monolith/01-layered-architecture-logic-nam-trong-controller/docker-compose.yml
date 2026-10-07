@@ -1,0 +1,25 @@
+# Lab Layered Architecture: một PostgreSQL 16 dùng chung cho bản "trước" (logic trong controller) và bản "sau"
+# (controller → service → repository). Cổng 55432 (không dùng 5432) để không đụng Postgres của dự án khác trên máy.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: distribution
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro # pnpm db:seed chạy seed.sql bằng psql trong container
+    healthcheck:
+      # Hỏi qua TCP: trong lúc chạy init.sql, server tạm của image chỉ nghe Unix socket,
+      # nên "healthy" qua TCP nghĩa là init đã xong (nhật ký quyết định, bài 02/04).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d distribution"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

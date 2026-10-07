@@ -69,7 +69,10 @@ pattern đánh dấu `// [PATTERN]`. Tên file tiếng Anh kebab-case, comment t
 - Đo đúng các chỉ số ở mục 5 của README; giữ nguyên bảng "Trước (minh họa)".
 - Ghi mục `### 5.1 Số đã đo`: môi trường (máy, Docker CPU/RAM, phiên bản dịch vụ, Node, k6), quy mô dữ liệu,
   tải (VUs, thời gian), bảng kết quả, và đối chiếu với từng mục tiêu ("đạt", "không đạt", "chưa đo").
-- Số đo thô ghi vào `bench/results/` (không commit). Ghi rõ hạn chế: seed nhỏ hơn mục 1, chạy chung máy, ít mẫu.
+- Số đo thô ghi vào `bench/results/` (không commit). Lượt chính để trong một thư mục (ví dụ `bench/results/main/`);
+  lượt chạy lại, kiểm tra hay thử nghiệm ghi vào thư mục khác (`recheck/`, `trial/`), **không ghi đè file thô mà
+  README đã trích**. Bài 02/04 phải sửa số trong README vì file của lượt chính bị một lượt sau ghi đè.
+  Ghi rõ hạn chế: seed nhỏ hơn mục 1, chạy chung máy, ít mẫu.
 - Không suy diễn vượt bằng chứng: nếu không tách được nguyên nhân, viết "chưa tách riêng được".
 - k6: URL có id thì đặt tag `name` cố định cho từng endpoint (ví dụ `PATCH /shipments/:id`), nếu không k6 tạo
   một chuỗi số liệu cho mỗi id, tốn RAM/CPU ngay trên máy đang chạy API và làm bẩn số đo (bài 02/02).

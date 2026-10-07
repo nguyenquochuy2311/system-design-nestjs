@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 189 | 0 | 4 |
+| 193 | 188 | 0 | 5 |
 
 ## Theo scope
 
@@ -19,7 +19,7 @@
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
 | [06 · Thời gian thực (`frontend / backend / realtime`)](./06-frontend-backend-realtime/) | 7 | 1 | 3 | 3 | 7 | 0 | 0 |
 | [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 8 | 0 | 0 |
-| [08 · Monolith (`backend / monolithics`)](./08-backend-monolith/) | 7 | 2 | 3 | 2 | 7 | 0 | 0 |
+| [08 · Monolith (`backend / monolithics`)](./08-backend-monolith/) | 7 | 2 | 3 | 2 | 6 | 0 | 1 |
 | [09 · Monorepo (`backend / monorepo`)](./09-backend-monorepo/) | 6 | 2 | 3 | 1 | 6 | 0 | 0 |
 | [10 · AI — RAG (`backend / AI RAG`)](./10-backend-ai-rag/) | 9 | 2 | 5 | 2 | 9 | 0 | 0 |
 | [11 · AI — Agent (`backend / AI Agent`)](./11-backend-ai-agent/) | 9 | 3 | 3 | 3 | 9 | 0 | 0 |
@@ -128,7 +128,7 @@
 
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
-| [Layered Architecture — Logic nghiệp vụ nằm trong controller, không test được, sửa một chỗ hỏng ba chỗ](./08-backend-monolith/01-layered-architecture-logic-nam-trong-controller/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Layered Architecture — Logic nghiệp vụ nằm trong controller, không test được, sửa một chỗ hỏng ba chỗ](./08-backend-monolith/01-layered-architecture-logic-nam-trong-controller/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-07 |
 | [Background Jobs in a Monolith — Xuất Excel 50k dòng làm treo tiến trình web](./08-backend-monolith/02-background-job-trong-monolith-xuat-excel-lam-treo-web/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [Transaction Script vs Domain Model — Hàm tính phí bảo hiểm 1.200 dòng if/else không ai dám sửa](./08-backend-monolith/03-domain-model-vs-transaction-script-tinh-phi-bao-hiem-1200-dong/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Hexagonal Architecture (Ports & Adapters) — Đổi cổng thanh toán phải sửa 20 file nghiệp vụ](./08-backend-monolith/04-hexagonal-architecture-doi-cong-thanh-toan-phai-sua-20-file/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
