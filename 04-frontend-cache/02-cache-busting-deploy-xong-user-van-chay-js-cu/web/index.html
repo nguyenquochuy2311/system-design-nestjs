@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>CRM Danh bạ</title>
+    <script>
+      // Bộ đo lỗi của lab (có ở mọi bản, không thuộc pattern): chạy trước mọi module nên bắt được cả lỗi tải script.
+      // Gửi lỗi JS, promise bị từ chối và lỗi tải file về API (/api/client-errors), kèm phiên bản đang chạy.
+      (function () {
+        var tab = Math.random().toString(36).slice(2, 10);
+        var lab = { tab: tab, errors: [] };
+        lab.report = function (kind, message, src) {
+          var item = {
+            kind: kind,
+            message: String(message).slice(0, 300),
+            src: src || null,
+            tab: tab,
+            version: (window.__APP__ && window.__APP__.version) || null,
+            path: location.pathname,
+          };
+          if (kind !== 'chunk-reload') lab.errors.push(item);
+          try {
+            fetch('/api/client-errors', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(item),
+              keepalive: true,
+            });
+          } catch (e) {}
+        };
+        window.__LAB__ = lab;
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e.target;
+            if (t && t !== window && (t.src || t.href)) lab.report('resource', 'không tải được ' + (t.src || t.href), t.src || t.href);
+            else lab.report('error', e.message, e.filename);
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function (e) {
+          lab.report('rejection', (e.reason && e.reason.message) || e.reason, null);
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

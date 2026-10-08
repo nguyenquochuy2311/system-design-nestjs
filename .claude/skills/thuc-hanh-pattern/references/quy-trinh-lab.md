@@ -19,6 +19,13 @@ trên cùng một máy; chạy song song làm số đo vô nghĩa.
 4. Dịch vụ không dùng được (image không còn, cần GPU NVIDIA...) thì **không giả lập kết quả**: chọn thay thế
    đã kiểm chứng (ghi lý do ở mục 4 và nhật ký), hoặc dừng ở 🔨 và ghi rõ phần bị chặn.
 
+5. **Máy phải thức suốt lượt đo.** Laptop gập nắp hoặc chạy pin sẽ "Maintenance Sleep" từng đợt và làm mọi tiến trình đứng
+   (bài 04/02 mất 3 lượt đo vì thế). Trước lượt dài: cắm sạc, mở nắp, chạy `caffeinate -ims -t <giây>`; script đo ghi
+   khoảng máy ngủ (so đồng hồ tường với mốc mỗi giây, như `bench/sleep-watch.ts` của bài 04/02) và lượt có khoảng ngủ
+   phải chạy lại. Kiểm nhanh: `pmset -g batt`, `ioreg -r -k AppleClamshellState -d 4 | grep AppleClamshellState`.
+6. **Không xóa thư mục mà container đang bind-mount** (ví dụ `.data/`) khi container còn chạy: Nginx mất thư mục log và
+   test lỗi theo kiểu khó đoán. Luôn `docker compose down -v` trước rồi mới xóa.
+
 ## 2. Cổng cố định cho lab
 
 Tránh cổng mặc định để không đụng dự án khác. Lab chạy tuần tự và tắt sau khi đo, nên các bài dùng chung bảng này.

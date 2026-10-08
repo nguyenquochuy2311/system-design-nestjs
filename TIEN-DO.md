@@ -1,12 +1,12 @@
 # Tiến độ thực hành
 
-> Sinh tự động bởi `node scripts/tao-tien-do.mjs` ngày 2026-10-07. **Không sửa tay** — sửa README của bài rồi chạy lại script.
+> Sinh tự động bởi `node scripts/tao-tien-do.mjs` ngày 2026-10-08. **Không sửa tay** — sửa README của bài rồi chạy lại script.
 
 ## Tổng quan
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 184 | 0 | 9 |
+| 193 | 183 | 0 | 10 |
 
 ## Theo scope
 
@@ -15,7 +15,7 @@
 | [01 · Giao tiếp Frontend ↔ Backend (`frontend / backend / transporter`)](./01-frontend-backend-transporter/) | 7 | 2 | 4 | 1 | 7 | 0 | 0 |
 | [02 · Cơ sở dữ liệu quan hệ (`backend / database`)](./02-backend-database/) | 9 | 2 | 3 | 4 | 5 | 0 | 4 |
 | [03 · Cache phía backend (`backend / cache`)](./03-backend-cache/) | 6 | 2 | 2 | 2 | 4 | 0 | 2 |
-| [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 5 | 0 | 1 |
+| [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 4 | 0 | 2 |
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
 | [06 · Thời gian thực (`frontend / backend / realtime`)](./06-frontend-backend-realtime/) | 7 | 1 | 3 | 3 | 7 | 0 | 0 |
 | [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 8 | 0 | 0 |
@@ -81,7 +81,7 @@
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
 | [HTTP Caching (Cache-Control, ETag) — Ảnh và JS tải lại mỗi lần, hóa đơn CDN tăng](./04-frontend-cache/01-http-cache-headers-anh-san-pham-tai-lai-moi-lan/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-07 |
-| [Cache Busting (content hash + immutable) — Deploy xong, nửa người dùng vẫn chạy JS cũ gọi API mới](./04-frontend-cache/02-cache-busting-deploy-xong-user-van-chay-js-cu/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Cache Busting (content hash + immutable) — Deploy xong, nửa người dùng vẫn chạy JS cũ gọi API mới](./04-frontend-cache/02-cache-busting-deploy-xong-user-van-chay-js-cu/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-08 |
 | [Stale-While-Revalidate (client) — Quay lại trang danh sách đơn lại thấy vòng xoay loading](./04-frontend-cache/03-stale-while-revalidate-quay-lai-trang-lai-thay-loading/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [Optimistic UI — Bấm "Thích" / "Thêm vào giỏ" phải chờ 1 giây mới thấy phản hồi](./04-frontend-cache/04-optimistic-ui-bam-thich-cho-mot-giay/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Normalized Client Cache — Cùng một khách hàng hiển thị tên cũ ở màn này, tên mới ở màn kia](./04-frontend-cache/05-normalized-cache-mot-user-hai-ten-khac-nhau/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |

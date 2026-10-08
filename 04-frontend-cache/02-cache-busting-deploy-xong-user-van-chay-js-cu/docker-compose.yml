@@ -1,0 +1,43 @@
+# Lab Cache Busting: hai dịch vụ hạ tầng, đều là nginx:1.30.5 (ghim, cùng digest với bài 04/01).
+# - origin: máy gốc tĩnh, đọc thẳng thư mục deploy .data/www/<site> (script deploy ghi vào đó).
+# - cdn: CDN mô phỏng (proxy_cache) ở cổng host 58088; trình duyệt mở http://sau.localhost:58088 hoặc
+#   http://truoc.localhost:58088 (Chrome tự trỏ *.localhost về 127.0.0.1). /api/ đi tới API NestJS trên host.
+# Không có database: danh bạ và ghi chú nằm trong bộ nhớ API.
+name: lab-04-02
+
+services:
+  origin:
+    image: nginx:1.30.5
+    command: ["nginx", "-c", "/etc/nginx/lab/origin.conf", "-g", "daemon off;"]
+    volumes:
+      - ./nginx:/etc/nginx/lab:ro
+      - ./.data/www/truoc:/srv/truoc:ro
+      - ./.data/www/sau:/srv/sau:ro
+      - ./.data/logs:/var/log/lab
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/__origin/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  cdn:
+    image: nginx:1.30.5
+    command: ["nginx", "-c", "/etc/nginx/lab/cdn.conf", "-g", "daemon off;"]
+    ports:
+      - "58088:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx:/etc/nginx/lab:ro
+      - ./.data/cdn-state:/etc/nginx/cdn-state:ro
+      - ./.data/logs:/var/log/lab
+    tmpfs:
+      - /var/cache/nginx/cdn:size=512m
+    depends_on:
+      origin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/__cdn/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
