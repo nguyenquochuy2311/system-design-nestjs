@@ -1,0 +1,43 @@
+# Lab Idempotency Key: PostgreSQL 16 (ví, thanh toán, bảng idempotency_keys) và Toxiproxy đứng giữa client và API.
+# Cổng theo bảng cổng của lab: Postgres 55432; Toxiproxy API điều khiển 58474, cổng proxy tới API 58401.
+services:
+  postgres:
+    image: postgres:16.15
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: wallet
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
+      - ./db:/lab/db:ro
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  toxiproxy:
+    # Image chính thức của Shopify, có arm64. Image không có shell: healthcheck gọi chính toxiproxy-cli.
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    ports:
+      - "58474:8474"
+      - "58401:58401"
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    extra_hosts:
+      # API chạy trên host (tsx); proxy trong container gọi ngược ra host.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

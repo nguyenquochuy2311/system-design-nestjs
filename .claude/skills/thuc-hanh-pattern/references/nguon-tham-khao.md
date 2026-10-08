@@ -124,6 +124,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | Prometheus | https://prometheus.io/docs/ (Histograms and summaries) |
 | Grafana Pyroscope | https://grafana.com/docs/pyroscope/ · Parca https://www.parca.dev/docs/ |
 | k6 | https://grafana.com/docs/k6/ (open vs closed model) |
+| Toxiproxy | https://github.com/Shopify/toxiproxy (toxic `limit_data`, `timeout`; HTTP API điều khiển) |
 | Langfuse | https://langfuse.com/docs · Arize Phoenix https://docs.arize.com/phoenix |
 | LiteLLM | https://docs.litellm.ai/ |
 | vLLM | https://docs.vllm.ai/ (Automatic Prefix Caching, metrics) |
@@ -162,7 +163,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | OIDC-BCL | OpenID Connect Back-Channel Logout 1.0 https://openid.net/specs/openid-connect-backchannel-1_0.html (cần xác minh URL) |
 | RFC 6238 | TOTP · W3C Web Authentication (WebAuthn) Level 3 https://www.w3.org/TR/webauthn-3/ · FIDO Alliance passkeys https://fidoalliance.org/passkeys/ |
 | RFC 9106 | Argon2 |
-| IDEMP-KEY | IETF draft, "The Idempotency-Key HTTP Header Field" (draft-ietf-httpapi-idempotency-key-header) |
+| IDEMP-KEY | IETF draft, "The Idempotency-Key HTTP Header Field" (draft-ietf-httpapi-idempotency-key-header), bản mới nhất -07 (15/10/2025, J. Jena, S. Dalal; datatracker ghi đã hết hạn) https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/ |
 | STDWEBHOOK | Standard Webhooks specification https://www.standardwebhooks.com/ |
 | W3C-TC | W3C Trace Context https://www.w3.org/TR/trace-context/ |
 | MCP | Model Context Protocol specification https://modelcontextprotocol.io/ |
@@ -225,6 +226,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | Mã | Bài |
 |---|---|
 | STRIPE-IDEMP | Stripe API Reference, "Idempotent requests" https://docs.stripe.com/api/idempotent_requests |
+| BRANDUR-IDEMP | Brandur Leach, "Implementing Stripe-like Idempotency Keys in Postgres", 2017. https://brandur.org/idempotency-keys |
 | STRIPE-RL | Paul Tarjan, "Scaling your API with rate limiters", Stripe, 2017. https://stripe.com/blog/rate-limiters |
 | STRIPE-VER | Brandur Leach, "APIs as infrastructure: future-proofing Stripe with versioning", 2017. https://stripe.com/blog/api-versioning |
 | STRIPE-MIG | Stripe, "Online migrations at scale", 2017. https://stripe.com/blog/online-migrations |

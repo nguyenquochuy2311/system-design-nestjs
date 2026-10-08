@@ -50,6 +50,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | API của lab | 3100 (service thêm: 3101, 3102...) |
 | Frontend của lab | 5173 hoặc 3200 |
 | Nginx (CDN mô phỏng, reverse proxy) | 58088 |
+| Toxiproxy `ghcr.io/shopify/toxiproxy:2.12.0` (API điều khiển / proxy tới API của lab) | 58474 / 58401 (proxy thêm: 58402...) |
 
 Lab cần nhiều bản sao ứng dụng (pod): chạy pod trong container cùng mạng Compose với DB (`docker compose --scale`,
 code gói bằng esbuild, `node:20-alpine`), k6 trong container `grafana/k6` cùng mạng; không nối pod trên host qua cổng
