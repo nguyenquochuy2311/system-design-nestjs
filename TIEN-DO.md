@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 178 | 0 | 15 |
+| 193 | 177 | 0 | 16 |
 
 ## Theo scope
 
@@ -30,7 +30,7 @@
 | [16 · Kubernetes (`backend / k8s`)](./16-backend-k8s/) | 9 | 2 | 4 | 3 | 9 | 0 | 0 |
 | [17 · Docker (`backend / docker`)](./17-backend-docker/) | 8 | 4 | 3 | 1 | 8 | 0 | 0 |
 | [18 · Mở rộng dọc và ngang (`backend / vertical / horizontal scale`)](./18-backend-scale/) | 8 | 2 | 3 | 3 | 8 | 0 | 0 |
-| [19 · Xác thực và phân quyền (`backend / frontend / authenticate`)](./19-backend-frontend-authenticate/) | 10 | 2 | 5 | 3 | 9 | 0 | 1 |
+| [19 · Xác thực và phân quyền (`backend / frontend / authenticate`)](./19-backend-frontend-authenticate/) | 10 | 2 | 5 | 3 | 8 | 0 | 2 |
 | [20 · Thiết kế hệ thống AI framework, cơ bản → nâng cao (`backend / AI framework system design`)](./20-backend-ai-framework-system-design/) | 10 | 3 | 4 | 3 | 10 | 0 | 0 |
 | [21 · Hạ tầng AI (`backend / AI infrastructure`)](./21-backend-ai-infrastructure/) | 8 | 2 | 4 | 2 | 8 | 0 | 0 |
 | [22 · Tối ưu AI: chi phí, độ trễ, chất lượng (`backend / AI optimizer`)](./22-backend-ai-optimizer/) | 10 | 4 | 4 | 2 | 10 | 0 | 0 |
@@ -271,7 +271,7 @@
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
 | [Password Hashing (Argon2id / bcrypt) — Lộ DB là lộ toàn bộ mật khẩu vì lưu MD5](./19-backend-frontend-authenticate/01-password-hashing-argon2-lo-db-la-lo-mat-khau/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-09 |
-| [Session Cookie vs JWT — SPA + API: lưu token ở localStorage (XSS) hay cookie (CSRF)?](./19-backend-frontend-authenticate/02-session-cookie-vs-jwt-spa-luu-token-o-dau/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Session Cookie vs JWT — SPA + API: lưu token ở localStorage (XSS) hay cookie (CSRF)?](./19-backend-frontend-authenticate/02-session-cookie-vs-jwt-spa-luu-token-o-dau/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-09 |
 | [OAuth 2.0 Authorization Code + PKCE — Đăng nhập bằng Google/Zalo cho SPA và app mobile không có nơi giữ secret](./19-backend-frontend-authenticate/03-oauth2-pkce-dang-nhap-google-cho-spa-va-mobile/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Refresh Token Rotation & Reuse Detection — Refresh token bị đánh cắp dùng được mãi](./19-backend-frontend-authenticate/04-refresh-token-rotation-token-bi-danh-cap-dung-mai/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [BFF / Token Handler for SPA — Token không bao giờ chạm JavaScript trên trình duyệt](./19-backend-frontend-authenticate/05-bff-token-handler-token-khong-bao-gio-cham-trinh-duyet/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |

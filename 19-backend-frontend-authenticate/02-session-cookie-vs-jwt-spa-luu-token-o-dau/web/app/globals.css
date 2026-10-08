@@ -1,0 +1,19 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+  max-width: 48rem;
+  line-height: 1.5;
+}
+.note {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+}
+input,
+textarea,
+button {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  margin: 0.25rem 0;
+}

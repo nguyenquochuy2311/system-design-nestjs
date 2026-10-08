@@ -157,6 +157,9 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | RFC 6455 | The WebSocket Protocol |
 | HTML-SSE | HTML Living Standard, "Server-sent events" https://html.spec.whatwg.org/multipage/server-sent-events.html |
 | RFC 6585 | Additional HTTP Status Codes (định nghĩa 429 Too Many Requests) |
+| RFC 6265bis | IETF draft-ietf-httpbis-rfc6265bis, *Cookies: HTTP State Management Mechanism* https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis (tiền tố `__Host-`/`__Secure-`, `SameSite`, điều kiện cookie `Secure`) |
+| MDN Set-Cookie | https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie (`HttpOnly`, `Secure`, `SameSite`, `Path`, `Domain`, tiền tố cookie) |
+| OWASP ZAP | ZAP Baseline Scan https://www.zaproxy.org/docs/docker/baseline-scan/ (quét passive, image `ghcr.io/zaproxy/zaproxy:stable`) |
 | RFC 7519 | JSON Web Token (JWT) · RFC 8725 JWT Best Current Practices |
 | RFC 6749 | OAuth 2.0 Authorization Framework · RFC 7636 PKCE · RFC 8705 OAuth 2.0 Mutual-TLS · RFC 9700 Best Current Practice for OAuth 2.0 Security (2025) |
 | OAUTH-BROWSER | IETF draft, "OAuth 2.0 for Browser-Based Apps" (draft-ietf-oauth-browser-based-apps) |

@@ -1,0 +1,40 @@
+# Lab Session Cookie vs JWT:
+# - postgres: PostgreSQL 16 lưu users + notes (notes lưu nguyên HTML để tái hiện stored XSS trong lab).
+# - redis: Redis 7 làm session store (connect-redis) + tập phiên theo user (thu hồi tức thì).
+# Cổng host theo bảng cổng của lab: 55432 (PostgreSQL), 56379 (Redis). API (3100) + Next.js (3200) chạy trên host.
+name: lab-19-02
+
+services:
+  postgres:
+    image: postgres:16.15
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: crm
+    ports:
+      - "55432:5432"
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d crm"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  redis:
+    # Session store: phiên mất khi restart là mọi người bị đăng xuất — chấp nhận có chủ đích trong lab (README 3.4).
+    image: redis:7.4.6
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

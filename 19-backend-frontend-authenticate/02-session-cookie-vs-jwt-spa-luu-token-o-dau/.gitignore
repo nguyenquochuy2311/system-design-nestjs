@@ -1,0 +1,12 @@
+node_modules/
+bench/results/
+.data/
+dist/
+.env
+# Next.js: bản build và file next tự sinh
+web/.next/
+web/.next-*/
+web/next-env.d.ts
+# Báo cáo ZAP thô (README chỉ tóm tắt), cert tự ký nếu có
+zap/
+*.pem
