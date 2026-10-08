@@ -38,7 +38,7 @@ Mũi tên liền: nên học trước. Mũi tên đứt: quan hệ thay thế ho
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
 | 01 | [Contract-First API (OpenAPI) — Frontend gọi sai tên trường, lỗi chỉ lộ khi chạy](./01-contract-first-openapi-frontend-goi-sai-ten-truong/) | 🟢 | OpenAPI Specification 3.1; Microsoft REST API Guidelines; tRPC docs (phương án type-safe end-to-end) | ✅ |
-| 02 | [Cursor-based Pagination — Trang 500 của lịch sử giao dịch mất 6 giây và lặp bản ghi](./02-cursor-pagination-trang-500-lich-su-giao-dich/) | 🟢 | Slack Engineering, "Evolving API Pagination at Slack" (2017); Use The Index, Luke — keyset pagination | 📋 |
+| 02 | [Cursor-based Pagination — Trang 500 của lịch sử giao dịch mất 6 giây và lặp bản ghi](./02-cursor-pagination-trang-500-lich-su-giao-dich/) | 🟢 | Slack Engineering, "Evolving API Pagination at Slack" (2017); Use The Index, Luke — keyset pagination | ✅ |
 | 03 | [Idempotency Key — Khách bấm "Thanh toán" hai lần vì mạng chập chờn, bị trừ tiền hai lần](./03-idempotency-key-bam-thanh-toan-hai-lan/) | 🟡 | Stripe API "Idempotent requests"; IETF draft Idempotency-Key header; Amazon Builders' Library "Making retries safe with idempotent APIs" | 📋 |
 | 04 | [Backend for Frontend (BFF) — Web, mobile và app đối tác cần hình dạng dữ liệu khác nhau từ cùng một hệ thống](./04-bff-web-mobile-can-du-lieu-khac-nhau/) | 🟡 | Sam Newman, "Backends For Frontends" (2015); Azure Architecture Center "Backends for Frontends" | 📋 |
 | 05 | [API Gateway — App di động phải gọi 7 service nội bộ để vẽ một màn hình](./05-api-gateway-mobile-goi-bay-service/) | 🟡 | microservices.io "API Gateway"; Azure "Gateway Aggregation / Routing / Offloading" | 📋 |

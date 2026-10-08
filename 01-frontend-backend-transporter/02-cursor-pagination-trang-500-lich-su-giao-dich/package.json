@@ -1,0 +1,42 @@
+{
+  "name": "cursor-pagination-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 01/02: Keyset (cursor) pagination cho lịch sử giao dịch trên PostgreSQL 16 — OFFSET so với truy vấn seek, cursor mờ có ký HMAC, frontend useInfiniteQuery",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:seed": "docker compose exec -T postgres psql -U app -d ledger -v ON_ERROR_STOP=1 -v rows=${ROWS:-20000000} -v merchants=${MERCHANTS:-1000} -v big=10 -v big_share=0.3 -f /lab/db/seed-transactions.sql",
+    "db:index": "docker compose exec -T postgres psql -U app -d ledger -v ON_ERROR_STOP=1 -f /lab/db/add-keyset-index.sql",
+    "db:unindex": "docker compose exec -T postgres psql -U app -d ledger -v ON_ERROR_STOP=1 -f /lab/db/drop-keyset-index.sql",
+    "db:reset": "docker compose down -v",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:explain": "tsx bench/explain-pages.ts",
+    "bench:scroll": "tsx bench/run-scroll.ts",
+    "bench:reconcile": "tsx bench/reconcile-under-inserts.ts",
+    "bench:drills": "tsx bench/negative-drills.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.1",
+    "fastify": "5.12.5",
+    "kysely": "0.29.6",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "happy-dom": "20.14.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

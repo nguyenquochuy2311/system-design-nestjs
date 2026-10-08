@@ -1,0 +1,33 @@
+# Lab Cursor Pagination: một PostgreSQL 16 chứa bảng `transactions` (seed hàng triệu dòng).
+# Cổng 55432 theo bảng cổng của lab (không dùng 5432 để không đụng Postgres của dự án khác).
+services:
+  postgres:
+    image: postgres:16.15
+    command:
+      - postgres
+      # Chỉ để seed hàng chục triệu dòng ít checkpoint hơn; không đổi kế hoạch truy vấn hay bộ nhớ đệm.
+      - -c
+      - max_wal_size=4GB
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ledger
+    ports:
+      - "55432:5432"
+    # /dev/shm mặc định của Docker là 64 MB. Bài 02/04 cần 256 MB cho VACUUM; bài này cần hơn: 10 truy vấn OFFSET
+    # cùng lúc trên merchant 600.000 dòng, mỗi truy vấn là một Parallel Bitmap Heap Scan giữ bitmap trong shared memory
+    # (lượt thử với 256 MB: 572 lỗi "could not resize shared memory segment", API trả 500).
+    shm_size: 1gb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db:/lab/db:ro
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d ledger"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+volumes:
+  pgdata:
