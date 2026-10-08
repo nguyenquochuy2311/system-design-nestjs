@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 177 | 0 | 16 |
+| 193 | 176 | 0 | 17 |
 
 ## Theo scope
 
@@ -28,7 +28,7 @@
 | [14 · Hàng đợi và message queue (`backend / queueing / message queueing`)](./14-backend-queueing/) | 9 | 2 | 5 | 2 | 9 | 0 | 0 |
 | [15 · Lưu trữ file và object (`backend / storage`)](./15-backend-storage/) | 8 | 2 | 5 | 1 | 8 | 0 | 0 |
 | [16 · Kubernetes (`backend / k8s`)](./16-backend-k8s/) | 9 | 2 | 4 | 3 | 9 | 0 | 0 |
-| [17 · Docker (`backend / docker`)](./17-backend-docker/) | 8 | 4 | 3 | 1 | 8 | 0 | 0 |
+| [17 · Docker (`backend / docker`)](./17-backend-docker/) | 8 | 4 | 3 | 1 | 7 | 0 | 1 |
 | [18 · Mở rộng dọc và ngang (`backend / vertical / horizontal scale`)](./18-backend-scale/) | 8 | 2 | 3 | 3 | 8 | 0 | 0 |
 | [19 · Xác thực và phân quyền (`backend / frontend / authenticate`)](./19-backend-frontend-authenticate/) | 10 | 2 | 5 | 3 | 8 | 0 | 2 |
 | [20 · Thiết kế hệ thống AI framework, cơ bản → nâng cao (`backend / AI framework system design`)](./20-backend-ai-framework-system-design/) | 10 | 3 | 4 | 3 | 10 | 0 | 0 |
@@ -244,7 +244,7 @@
 
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
-| [Multi-stage Build — Image 1,8 GB chứa cả devDependencies, deploy mất 10 phút](./17-backend-docker/01-multi-stage-build-image-1-8gb-deploy-10-phut/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Multi-stage Build — Image 1,8 GB chứa cả devDependencies, deploy mất 10 phút](./17-backend-docker/01-multi-stage-build-image-1-8gb-deploy-10-phut/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-09 |
 | [Layer Caching & .dockerignore — Mỗi build cài lại toàn bộ npm 5 phút dù chỉ sửa một dòng code](./17-backend-docker/02-layer-cache-dockerignore-moi-build-cai-lai-npm-5-phut/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [PID 1 & Signal Handling — Container không nhận SIGTERM, bị kill cứng sau 10 giây, request rớt](./17-backend-docker/03-pid-1-signal-sigterm-container-khong-tat-sach/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Non-root, Read-only FS & Distroless — Container chạy root, có shell; một lỗ RCE là chiếm được node](./17-backend-docker/04-non-root-distroless-container-chay-root-co-shell/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |

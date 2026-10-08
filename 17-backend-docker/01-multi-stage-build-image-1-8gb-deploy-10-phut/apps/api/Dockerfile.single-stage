@@ -1,0 +1,14 @@
+# HIỆN TRẠNG (để so sánh): một stage. Base đầy đủ (buildpack-deps: gcc, git, python...), `COPY . .` cả repo
+# (gồm .git, mã nguồn, test), cài cả devDependencies, build và chạy luôn trong cùng image, chạy bằng root.
+# Build từ gốc monorepo: docker build -f apps/api/Dockerfile.single-stage -t lab-17-01/api:single .
+# File `Dockerfile.single-stage.dockerignore` cạnh file này cố ý rỗng để mô phỏng repo chưa có .dockerignore
+# (BuildKit ưu tiên ignore-file riêng theo tên Dockerfile hơn `.dockerignore` ở gốc context).
+FROM node:20.20.2-bookworm@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5
+LABEL lab.id="17-01" lab.variant="single-stage"
+RUN npm install -g pnpm@10.32.0
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter "@lab/api..." run build
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@lab/api", "start"]

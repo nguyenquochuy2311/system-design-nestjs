@@ -1,0 +1,32 @@
+{
+  "name": "multi-stage-build-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 17/01: Multi-stage Build — monorepo pnpm (NestJS 10 + thư viện chung), Dockerfile một stage (hiện trạng) và nhiều stage, registry local, smoke test, kiểm nội dung image, Trivy",
+  "packageManager": "pnpm@10.32.0",
+  "scripts": {
+    "registry:up": "docker compose up -d --wait",
+    "registry:down": "docker compose down -v",
+    "context": "tsx scripts/prepare-context.ts",
+    "build:single": "tsx scripts/build.ts single",
+    "build:multi": "tsx scripts/build.ts multi",
+    "build:test-target": "tsx scripts/build.ts test-target",
+    "smoke": "tsx scripts/smoke-test.ts",
+    "inspect-image": "tsx scripts/inspect-image.ts",
+    "clean:images": "tsx scripts/clean-images.ts",
+    "test": "vitest run",
+    "typecheck": "pnpm --filter @lab/shared build && tsc --noEmit && pnpm --filter @lab/api typecheck",
+    "bench:measure": "tsx bench/measure.ts",
+    "bench:negative": "tsx bench/negative-drills.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

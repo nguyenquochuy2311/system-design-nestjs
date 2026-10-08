@@ -1,0 +1,15 @@
+# [PATTERN] .dockerignore cho Dockerfile nhiều stage: không gửi lịch sử git, node_modules/dist của máy,
+# kết quả đo, test của lab và tài liệu lên BuildKit. Dockerfile.single-stage dùng ignore-file riêng (rỗng).
+.git
+**/node_modules
+**/dist
+.tmp
+.data
+.cache
+bench
+test
+scripts
+*.md
+.env
+.env.*
+docker-compose.yml

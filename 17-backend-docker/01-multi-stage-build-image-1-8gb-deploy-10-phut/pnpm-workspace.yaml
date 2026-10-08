@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# [PATTERN] `pnpm deploy` (pnpm 10) chỉ chạy khi workspace dùng injected dependencies: @lab/shared được chép
+# (theo trường `files`) vào node_modules của @lab/api thay vì symlink, nên thư mục deploy tự đủ, chép được sang stage khác.
+injectWorkspacePackages: true
+# Sau `build` của @lab/shared, pnpm đồng bộ lại bản đã inject (để @lab/api thấy dist/ vừa build).
+syncInjectedDepsAfterScripts:
+  - build

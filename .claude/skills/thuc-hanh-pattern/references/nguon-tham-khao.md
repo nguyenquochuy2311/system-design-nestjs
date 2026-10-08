@@ -98,8 +98,11 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | Knative Serving | https://knative.dev/docs/serving/ |
 | Istio | https://istio.io/latest/docs/ · Linkerd https://linkerd.io/docs/ |
 | Docker | https://docs.docker.com/ — Multi-stage builds, Build cache, .dockerignore, HEALTHCHECK, Build secrets, `--init`; Compose `depends_on` conditions |
+| Docker (trang cụ thể, URL kiểm 2026-10-09) | Multi-stage builds https://docs.docker.com/build/building/multi-stage/ (mục "Differences between legacy builder and BuildKit": BuildKit chỉ build stage mà target phụ thuộc) · Build context / .dockerignore https://docs.docker.com/build/concepts/context/ (ignore-file riêng `<Dockerfile>.dockerignore` được ưu tiên hơn `.dockerignore` ở gốc) · Build cache https://docs.docker.com/build/cache/ · containerd image store https://docs.docker.com/engine/storage/containerd/ · Image chính thức `registry` https://hub.docker.com/_/registry, `docker` (dind) https://hub.docker.com/_/docker |
+| Node.js Docker image | https://hub.docker.com/_/node (biến thể bookworm, bookworm-slim, alpine) · "Docker and Node.js Best Practices" https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md (user `node` có sẵn, `NODE_ENV=production`, chạy thẳng `node`) (URL kiểm 2026-10-09) |
+| pnpm và Docker | `pnpm deploy` https://pnpm.io/cli/deploy (pnpm 10 đòi `inject-workspace-packages=true` hoặc `--legacy`) · "Working with Docker" https://pnpm.io/docker · Settings (`injectWorkspacePackages`, `syncInjectedDepsAfterScripts`) https://pnpm.io/settings (URL kiểm 2026-10-09) |
 | distroless | https://github.com/GoogleContainerTools/distroless |
-| Trivy | https://trivy.dev/ · Syft https://github.com/anchore/syft |
+| Trivy | https://trivy.dev/ · Container image target https://trivy.dev/latest/docs/target/container_image/ (URL kiểm 2026-10-09) · Syft https://github.com/anchore/syft |
 | OCI Image spec | https://github.com/opencontainers/image-spec |
 | NGINX | https://nginx.org/en/docs/ (HTTP load balancing; `ngx_http_limit_req_module`) |
 | gRPC | https://grpc.io/docs/ · Protocol Buffers https://protobuf.dev/ ("Updating A Message Type") · Apache Avro https://avro.apache.org/docs/ |
