@@ -1,0 +1,23 @@
+# Lint hợp đồng: bộ luật OpenAPI có sẵn của Spectral + luật đặt tên theo Microsoft REST API Guidelines.
+extends:
+  - spectral:oas
+rules:
+  # [PATTERN] Một quy ước tên trường cho mọi endpoint: camelCase. Lẫn snake_case là lỗi, không phải cảnh báo.
+  property-names-camel-case:
+    description: Tên trường trong schema phải là camelCase (Microsoft REST API Guidelines).
+    severity: error
+    given: "$..properties"
+    then:
+      field: "@key"
+      function: casing
+      functionOptions:
+        type: camel
+  # Lỗi phải theo một định dạng chung: mọi response 4xx/5xx dùng ErrorResponse.
+  error-responses-use-error-schema:
+    description: Response lỗi phải tham chiếu components/responses (BadRequest, NotFound) dùng ErrorResponse.
+    severity: error
+    resolved: false
+    given: "$.paths[*][*].responses[?(@property >= '400')]"
+    then:
+      field: "$ref"
+      function: truthy

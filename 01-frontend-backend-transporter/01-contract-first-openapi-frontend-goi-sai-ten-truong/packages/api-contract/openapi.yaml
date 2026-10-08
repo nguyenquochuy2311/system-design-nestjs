@@ -1,0 +1,233 @@
+# [PATTERN] Nguồn sự thật duy nhất của hợp đồng giữa web và backend.
+# Sửa file này TRƯỚC, qua PR có cả hai đội review; type của web, kiểm tra request của backend,
+# test hợp đồng, lint và diff đều đọc từ đây. Quy ước theo Microsoft REST API Guidelines:
+# tên trường camelCase, lỗi dạng { error: { code, message } }, danh sách dạng { value: [...] }.
+openapi: 3.1.0
+info:
+  title: CRM Customers API
+  version: 1.0.0
+  description: Module "khách hàng" của CRM (lab bài 01/01, doanh nghiệp giả định).
+  contact:
+    name: Đội backend CRM (giả định)
+servers:
+  - url: http://127.0.0.1:3100
+    description: API của lab
+tags:
+  - name: customers
+    description: Khách hàng doanh nghiệp của CRM
+paths:
+  /customers:
+    get:
+      operationId: listCustomers
+      summary: Danh sách khách hàng
+      description: Trả tối đa `limit` khách hàng, sắp theo mã.
+      tags: [customers]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Số khách hàng tối đa mỗi trang.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 2
+      responses:
+        "200":
+          description: Danh sách khách hàng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: createCustomer
+      summary: Tạo khách hàng
+      description: Tạo khách hàng mới từ form "Thêm khách hàng".
+      tags: [customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+            example:
+              name: Công ty TNHH Hoa Sen
+              email: lienhe@hoasen.example
+              phone: "+84901234567"
+              tier: standard
+              address:
+                line1: 12 Nguyễn Huệ
+                city: Hồ Chí Minh
+              tags: [b2b]
+      responses:
+        "201":
+          description: Đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /customers/{customerId}:
+    get:
+      operationId: getCustomer
+      summary: Chi tiết khách hàng
+      description: Dữ liệu cho màn hình "Chi tiết khách hàng".
+      tags: [customers]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          description: Mã khách hàng, dạng `cus_` + 3 chữ số.
+          schema:
+            type: string
+            pattern: "^cus_[0-9]{3}$"
+          example: cus_001
+      responses:
+        "200":
+          description: Khách hàng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  responses:
+    BadRequest:
+      description: Request không khớp hợp đồng
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Không tìm thấy
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    Customer:
+      type: object
+      description: Khách hàng như màn hình "Chi tiết khách hàng" cần.
+      required: [id, name, email, phone, tier, address, tags, creditLimit, createdAt]
+      properties:
+        id:
+          type: string
+          description: Mã khách hàng.
+          examples: [cus_001]
+        name:
+          type: string
+          description: Tên hiển thị của khách hàng.
+          examples: [Công ty CP Minh Long]
+        email:
+          type: string
+          format: email
+          description: Email liên hệ chính.
+        phone:
+          # [PATTERN] OpenAPI 3.1 theo JSON Schema: "có trường nhưng chưa có số" là null, không phải bỏ trường.
+          type: [string, "null"]
+          description: Số điện thoại E.164, null khi khách chưa cung cấp.
+          examples: ["+84281234567"]
+        tier:
+          $ref: "#/components/schemas/CustomerTier"
+        address:
+          $ref: "#/components/schemas/Address"
+        tags:
+          type: array
+          description: Nhãn do sale gắn.
+          items:
+            type: string
+        creditLimit:
+          type: integer
+          minimum: 0
+          description: Hạn mức công nợ, đơn vị VND.
+        createdAt:
+          type: string
+          format: date-time
+          description: Thời điểm tạo, RFC 3339.
+    CustomerTier:
+      type: string
+      description: Hạng khách hàng.
+      enum: [standard, gold, platinum]
+    Address:
+      type: object
+      description: Địa chỉ xuất hóa đơn.
+      required: [line1, city]
+      properties:
+        line1:
+          type: string
+          description: Số nhà, đường.
+        city:
+          type: string
+          description: Tỉnh hoặc thành phố.
+    CustomerList:
+      type: object
+      description: Một trang khách hàng.
+      required: [value]
+      properties:
+        value:
+          type: array
+          description: Các khách hàng trong trang.
+          items:
+            $ref: "#/components/schemas/Customer"
+    CreateCustomerRequest:
+      type: object
+      description: Dữ liệu form "Thêm khách hàng".
+      required: [name, email, tier, address]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Tên hiển thị.
+        email:
+          type: string
+          format: email
+          description: Email liên hệ chính.
+        phone:
+          type: [string, "null"]
+          description: Số điện thoại E.164.
+        tier:
+          $ref: "#/components/schemas/CustomerTier"
+        address:
+          $ref: "#/components/schemas/Address"
+        tags:
+          type: array
+          description: Nhãn ban đầu.
+          items:
+            type: string
+    ErrorResponse:
+      type: object
+      description: Định dạng lỗi theo Microsoft REST API Guidelines.
+      required: [error]
+      properties:
+        error:
+          type: object
+          description: Chi tiết lỗi.
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Mã lỗi máy đọc được.
+            message:
+              type: string
+              description: Mô tả cho người đọc.
+            details:
+              type: array
+              description: Lỗi con, ví dụ từng trường không hợp lệ.
+              items:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: string
+                    description: Mã lỗi con.
+                  message:
+                    type: string
+                    description: Mô tả lỗi con.
+                  target:
+                    type: string
+                    description: Đường dẫn trường bị lỗi.

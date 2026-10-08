@@ -10,7 +10,7 @@
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join, resolve, relative } from 'node:path';
+import { delimiter, dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -25,7 +25,10 @@ const hasCompose = existsSync(join(LAB, 'docker-compose.yml')) || existsSync(joi
 const results = [];
 const t0 = Date.now();
 
-const sh = (cmd, opts = {}) => spawnSync('/bin/zsh', ['-lc', cmd], { cwd: LAB, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
+// Không dùng login shell (`zsh -l`): ~/.zprofile chạy `brew shellenv` đưa node của Homebrew (khác bản Node 20 của repo) lên
+// đầu PATH. Đặt thư mục của node đang chạy script lên đầu PATH để pnpm, tsx, vitest đều chạy đúng phiên bản này.
+const ENV = { ...process.env, PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH ?? ''}` };
+const sh = (cmd, opts = {}) => spawnSync('/bin/zsh', ['-c', cmd], { cwd: LAB, env: ENV, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
 function step(name, cmd, { allowFail = false, show = 6 } = {}) {
   const s = Date.now();
   const r = sh(cmd);
@@ -47,6 +50,10 @@ function finish(code) {
 const batt = sh('pmset -g batt | head -1').stdout.trim();
 const lid = sh("ioreg -r -k AppleClamshellState -d 4 | grep -m1 AppleClamshellState").stdout.trim();
 console.log(`Nguồn: ${batt.replace("Now drawing from ", '')} · nắp gập: ${/Yes/.test(lid) ? 'CÓ (máy sẽ ngủ!)' : 'không'}`);
+const nodeV = sh('node -v').stdout.trim();
+const pnpmV = sh('pnpm -v').stdout.trim();
+console.log(`Node ${nodeV} · pnpm ${pnpmV}${pkg.engines?.node ? ` · engines.node của bài: ${pkg.engines.node}` : ''}`);
+if (!nodeV.startsWith('v20.')) console.log('• Repo dùng Node 20 (CLAUDE.md); chạy script bằng node 20, vd `nvm use 20`.');
 
 // 2. Dọn trạng thái cũ, cài lại từ lockfile, dựng dịch vụ.
 if (hasCompose) step('docker compose down -v', 'docker compose down -v', { allowFail: true, show: 1 });

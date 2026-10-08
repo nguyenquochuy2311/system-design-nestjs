@@ -105,6 +105,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | gRPC | https://grpc.io/docs/ · Protocol Buffers https://protobuf.dev/ ("Updating A Message Type") · Apache Avro https://avro.apache.org/docs/ |
 | GraphQL | https://graphql.org/learn/ · Apollo Client/Federation https://www.apollographql.com/docs/ |
 | OpenAPI | https://spec.openapis.org/oas/latest.html · Microsoft REST API Guidelines https://github.com/microsoft/api-guidelines |
+| Công cụ OpenAPI | openapi-typescript / openapi-fetch https://openapi-ts.dev/ · Ajv https://ajv.js.org/ (draft 2020-12) · Spectral https://github.com/stoplightio/spectral · Prism https://github.com/stoplightio/prism · oasdiff https://github.com/oasdiff/oasdiff (URL lấy từ metadata npm/OCI label, 2026-10-08) |
 | tRPC | https://trpc.io/docs |
 | Socket.IO | https://socket.io/docs/v4/redis-adapter/ |
 | Phoenix.Presence | https://hexdocs.pm/phoenix/Phoenix.Presence.html |

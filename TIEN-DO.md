@@ -6,13 +6,13 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 182 | 0 | 11 |
+| 193 | 181 | 0 | 12 |
 
 ## Theo scope
 
 | Scope | Số bài | 🟢 | 🟡 | 🔴 | 📋 | 🔨 | ✅ |
 |---|---|---|---|---|---|---|---|
-| [01 · Giao tiếp Frontend ↔ Backend (`frontend / backend / transporter`)](./01-frontend-backend-transporter/) | 7 | 2 | 4 | 1 | 7 | 0 | 0 |
+| [01 · Giao tiếp Frontend ↔ Backend (`frontend / backend / transporter`)](./01-frontend-backend-transporter/) | 7 | 2 | 4 | 1 | 6 | 0 | 1 |
 | [02 · Cơ sở dữ liệu quan hệ (`backend / database`)](./02-backend-database/) | 9 | 2 | 3 | 4 | 5 | 0 | 4 |
 | [03 · Cache phía backend (`backend / cache`)](./03-backend-cache/) | 6 | 2 | 2 | 2 | 4 | 0 | 2 |
 | [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 3 | 0 | 3 |
@@ -43,7 +43,7 @@
 
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
-| [Contract-First API (OpenAPI) — Frontend gọi sai tên trường, lỗi chỉ lộ khi chạy](./01-frontend-backend-transporter/01-contract-first-openapi-frontend-goi-sai-ten-truong/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Contract-First API (OpenAPI) — Frontend gọi sai tên trường, lỗi chỉ lộ khi chạy](./01-frontend-backend-transporter/01-contract-first-openapi-frontend-goi-sai-ten-truong/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-08 |
 | [Cursor-based Pagination — Trang 500 của lịch sử giao dịch mất 6 giây và lặp bản ghi](./01-frontend-backend-transporter/02-cursor-pagination-trang-500-lich-su-giao-dich/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [Idempotency Key — Khách bấm "Thanh toán" hai lần vì mạng chập chờn, bị trừ tiền hai lần](./01-frontend-backend-transporter/03-idempotency-key-bam-thanh-toan-hai-lan/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Backend for Frontend (BFF) — Web, mobile và app đối tác cần hình dạng dữ liệu khác nhau từ cùng một hệ thống](./01-frontend-backend-transporter/04-bff-web-mobile-can-du-lieu-khac-nhau/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
