@@ -1,0 +1,19 @@
+# [PATTERN] .dockerignore cho apps/api/Dockerfile (Dockerfile.naive dùng ignore-file riêng, rỗng).
+# Không gửi lên BuildKit: lịch sử git, node_modules/dist của máy, bí mật local, kết quả đo, tài liệu.
+.git
+**/node_modules
+**/dist
+**/coverage
+.env
+.env.*
+.tmp
+.data
+.cache
+bench
+test
+scripts
+*.md
+docker-compose.yml
+# Dockerfile và ignore-file vẫn được gửi cho BuildKit để đọc, nhưng không vào `COPY`, nên sửa chúng không làm mất cache.
+**/Dockerfile*
+.dockerignore

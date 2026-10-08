@@ -1,0 +1,31 @@
+{
+  "name": "layer-cache-dockerignore-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 17/02: Layer Caching & .dockerignore — Dockerfile hiện trạng (COPY . . trước install) và Dockerfile theo pattern (.dockerignore, manifest trước mã nguồn, pnpm fetch + cache mount, cache registry), đo bốn kịch bản build",
+  "packageManager": "pnpm@10.32.0",
+  "scripts": {
+    "registry:up": "docker compose up -d --wait",
+    "registry:down": "docker compose down -v",
+    "context": "tsx scripts/prepare-context.ts",
+    "list-context": "tsx scripts/list-context.ts",
+    "build:naive": "tsx scripts/build.ts naive",
+    "build:pattern": "tsx scripts/build.ts pattern",
+    "clean": "tsx scripts/clean.ts",
+    "test": "vitest run",
+    "typecheck": "pnpm --filter @lab/shared build && tsc --noEmit && pnpm --filter @lab/api typecheck",
+    "bench:measure": "tsx bench/measure.ts",
+    "bench:negative": "tsx bench/negative-drills.ts",
+    "bench:check-cache-mount": "tsx bench/check-cache-mount.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

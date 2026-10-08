@@ -1,0 +1,22 @@
+# Registry local cho lab 17/02: nơi lưu cache build (`--cache-to/--cache-from type=registry`) để builder mới
+# (mô phỏng runner CI tạm) dùng lại layer. Cùng image/digest và cổng với bài 17/01 (hai lab không chạy cùng lúc).
+# "Mạng" ở đây là loopback trong máy ảo Docker Desktop, không phải mạng giữa runner CI và registry thật.
+name: lab-17-02
+services:
+  registry:
+    image: registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+    ports:
+      - "127.0.0.1:58500:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    labels:
+      lab.id: "17-02"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5000/v2/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+volumes:
+  registry-data:
+    labels:
+      lab.id: "17-02"

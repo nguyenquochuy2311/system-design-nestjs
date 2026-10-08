@@ -37,7 +37,7 @@ flowchart TB
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
 | 01 | [Multi-stage Build — Image 1,8 GB chứa cả devDependencies, deploy mất 10 phút](./01-multi-stage-build-image-1-8gb-deploy-10-phut/) | 🟢 | Docker docs "Multi-stage builds", "Best practices for writing Dockerfiles" | ✅ |
-| 02 | [Layer Caching & .dockerignore — Mỗi build cài lại toàn bộ npm 5 phút dù chỉ sửa một dòng code](./02-layer-cache-dockerignore-moi-build-cai-lai-npm-5-phut/) | 🟢 | Docker docs "Build cache", ".dockerignore file"; BuildKit cache mounts | 📋 |
+| 02 | [Layer Caching & .dockerignore — Mỗi build cài lại toàn bộ npm 5 phút dù chỉ sửa một dòng code](./02-layer-cache-dockerignore-moi-build-cai-lai-npm-5-phut/) | 🟢 | Docker docs "Build cache", ".dockerignore file"; BuildKit cache mounts | ✅ |
 | 03 | [PID 1 & Signal Handling — Container không nhận SIGTERM, bị kill cứng sau 10 giây, request rớt](./03-pid-1-signal-sigterm-container-khong-tat-sach/) | 🟡 | Docker docs (`--init`, tini); Yelp Engineering, "dumb-init: An init for Docker" (2016); Node.js docs (process signals) | 📋 |
 | 04 | [Non-root, Read-only FS & Distroless — Container chạy root, có shell; một lỗ RCE là chiếm được node](./04-non-root-distroless-container-chay-root-co-shell/) | 🟡 | Docker docs "Security"; GoogleContainerTools distroless; OWASP "Docker Security Cheat Sheet" | 📋 |
 | 05 | [Docker Compose & Dev/Prod Parity — "Trên máy em chạy được" vì Postgres local 14, production 16](./05-compose-dev-prod-parity-tren-may-em-chay-duoc/) | 🟢 | 12factor.net "Dev/prod parity"; Docker Compose docs | 📋 |

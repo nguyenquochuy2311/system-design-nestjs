@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Kế thừa từ bài 17/01: `pnpm deploy --prod` (pnpm 10) cần injected dependencies; @lab/shared được chép
+# (theo trường `files`) vào node_modules của @lab/api thay vì symlink, nên thư mục deploy tự đủ.
+injectWorkspacePackages: true
+# Sau `build` của @lab/shared, pnpm đồng bộ lại bản đã inject (để @lab/api thấy dist/ vừa build).
+syncInjectedDepsAfterScripts:
+  - build

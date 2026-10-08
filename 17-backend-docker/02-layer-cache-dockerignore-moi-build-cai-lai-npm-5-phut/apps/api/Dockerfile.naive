@@ -1,0 +1,25 @@
+# HIỆN TRẠNG (để so sánh): `COPY . .` cả repo ngay sau FROM, rồi cài dependency, rồi build — một stage.
+# Sửa bất kỳ file nào (kể cả README) là khóa cache của `COPY . .` đổi, nên `pnpm install` chạy lại và tải lại mọi gói.
+# File `Dockerfile.naive.dockerignore` cạnh file này cố ý rỗng để mô phỏng repo chưa có .dockerignore
+# (BuildKit ưu tiên ignore-file riêng theo tên Dockerfile hơn `.dockerignore` ở gốc context).
+# Cùng base image với Dockerfile theo pattern để so thời gian không lệch vì base.
+ARG NODE_IMAGE=node:20.20.2-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+
+FROM ${NODE_IMAGE} AS app
+LABEL lab.id="17-02" lab.variant="naive"
+RUN npm install -g pnpm@10.32.0
+WORKDIR /app
+COPY . .
+# Không có .dockerignore nên `COPY . .` mang cả node_modules của máy (macOS) vào; pnpm 10 thấy node_modules lạ và dừng với
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY (gặp thật ở lượt thử). Hiện trạng "sửa" theo đúng gợi ý của pnpm: CI=true
+# để pnpm xóa node_modules đã chép rồi cài lại (layer COPY vẫn mang bản macOS).
+ENV CI=true
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter "@lab/api..." run build
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["node", "apps/api/dist/main.js"]
+
+# --- context-probe: chỉ dùng để kiểm build context mà BuildKit nhận (test (a)); không stage nào khác phụ thuộc nó.
+FROM scratch AS context-probe
+COPY . /ctx
