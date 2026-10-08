@@ -22,6 +22,7 @@ bằng tiếng Việt**, tên pattern giữ tiếng Anh.
 ```bash
 node scripts/kiem-tra-readme.mjs   # lint cấu trúc README mọi bài (thoát 1 nếu lỗi)
 node scripts/tao-tien-do.mjs       # sinh lại TIEN-DO.md
+node scripts/kiem-chung-lab.mjs <thư-mục-bài> [--seed]   # kiểm chứng một lab trước khi commit
 ```
 
 Code thực hành của một bài chạy bằng `docker compose up -d && pnpm install && pnpm test` trong thư mục bài.

@@ -87,6 +87,22 @@ pattern đánh dấu `// [PATTERN]`. Tên file tiếng Anh kebab-case, comment t
 - So một overhead nhỏ (cỡ ≤ 1 ms): chạy nhiều vòng, xoay thứ tự, có warm-up; ghi trung vị kèm thấp nhất – cao nhất
   và chênh lệch theo từng vòng. Chênh nhỏ hơn dao động giữa các vòng thì ghi "không thấy vượt mức nhiễu".
 
+## 5b. Ngân sách thời gian (để làm nhanh mà vẫn trung thực)
+
+Mục tiêu khoảng **60–90 phút cho một bài** (10 bài đầu mất 1–3 giờ, phần lớn ở lượt đo dài và đo lại).
+
+- **Đo vừa đủ:** chỉ số dạng "đúng/sai" (lost update, cache cũ, request lỗi, số câu SQL) không cần chạy lâu; một lượt
+  ngắn có cỡ mẫu rõ ràng là đủ. Chỉ số độ trễ / thông lượng: 3 vòng × 30–60 s có xoay thứ tự là mặc định; chỉ tăng khi
+  chênh lệch nằm sát nhiễu. Lượt "ngâm" dài (≥ 10 phút) chỉ khi chỉ số của bài thật sự phụ thuộc thời gian dài
+  (rò bộ nhớ, TTL, lịch job) và ghi lý do.
+- **Lượt thử trước, lượt chính sau:** lượt thử ngắn (vài chục giây) để bắt lỗi script; lượt chính chạy một lần đúng
+  cấu hình. Đừng chạy lượt chính rồi mới phát hiện lỗi đếm.
+- **Kiểm điều kiện máy trước lượt dài** (nguồn điện, nắp, load < khoảng 8) để không phải đo lại.
+- **Chạy lại từ đầu** ở bước hoàn tất là để kiểm "Cách chạy", không phải để đo lại toàn bộ: dùng tham số ngắn nhất
+  chứng minh được cùng kết luận.
+- Người điều phối kiểm chứng bằng `node scripts/kiem-chung-lab.mjs <thư-mục-bài> [--seed] [--keep-up]` cộng phần
+  đối chiếu số đo và một phép thử âm.
+
 ## 6. Hoàn tất
 
 1. Chạy lại **từ đầu** theo phần "Cách chạy" trong README (volume sạch: `docker compose down -v`) để chắc hướng dẫn đúng.

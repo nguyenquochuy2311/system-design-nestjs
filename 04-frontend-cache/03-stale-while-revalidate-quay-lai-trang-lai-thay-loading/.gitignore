@@ -1,0 +1,7 @@
+node_modules/
+bench/results/
+web/.next/
+web/.next-*/
+# Next.js tự sinh và tự ghi lại mỗi lần build (tài liệu Next 16.4: cho vào .gitignore)
+web/next-env.d.ts
+.env
