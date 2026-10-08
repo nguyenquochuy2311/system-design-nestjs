@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 19 · backend / frontend / authenticate | 🟢 Cơ bản | 📋 Kế hoạch | Argon2id — RFC 9106 (2021); OWASP "Password Storage Cheat Sheet" | 2026-10-06 |
+| 19 · backend / frontend / authenticate | 🟢 Cơ bản | ✅ Hoàn thành | Argon2id — RFC 9106 (2021); OWASP "Password Storage Cheat Sheet" | 2026-10-09 |
 
 > **Một câu tóm tắt:** Lưu mật khẩu bằng hàm băm chuyên dụng, chậm và tốn bộ nhớ (Argon2id, dự phòng bcrypt) với salt riêng từng người, để một bản sao DB bị lộ không biến thành danh sách mật khẩu dùng được — và nâng cấp hash cũ dần theo từng lần đăng nhập mà không cần biết mật khẩu gốc.
 
@@ -109,6 +109,12 @@ sequenceDiagram
 - Cắt ngắn mật khẩu hoặc cấm ký tự đặc biệt "cho an toàn": giảm entropy mà không có lợi gì cho hash.
 - Quên đưa luồng *đặt lại mật khẩu* và *đổi mật khẩu* qua cùng `PasswordHasher` — hash mới sinh vẫn theo cách cũ.
 
+**Gặp thật khi làm lab (xem mục 5.1 và nhật ký 19/01):**
+- **Migration và nâng cấp phải XÓA hash cũ cùng lúc.** Bọc `argon2id(md5)` mà vẫn giữ nguyên cột `password_md5` thì một bản dump sau migration VẪN lộ 85 % mật khẩu qua cột MD5 không salt — "đã áp pattern" nhưng chưa đóng lỗ. Phải `password_md5 = NULL` ngay trong câu `UPDATE` bọc và trong `rehash` khi đăng nhập. (Lỗi này lọt qua 12 test và 4 phép thử âm ban đầu vì chúng chỉ kiểm cột `password_hash`; chỉ lộ khi dump cả bảng lúc kiểm đầu cuối. Script tấn công cũng phải thử MỌI cột của dump, không chỉ cột hash mới.)
+- Prebuilt của `argon2` (node-argon2 `0.45.1`) cho `darwin-arm64` lại là binary Linux → `require` làm Node thoát mã 139 (SIGSEGV). Lab dùng `@node-rs/argon2` (napi-rs, có gói nền tảng riêng), ghim `2.2.2`; gói này không có `needsRehash` nên tự parse chuỗi PHC để so tham số, pepper truyền qua tùy chọn `secret`.
+- NestJS chạy bằng `tsx` (esbuild) không phát metadata `design:paramtypes`, phải `@Inject(<lớp>)` tường minh mọi tham số constructor; test Vitest (oxc) vẫn tiêm được theo kiểu nên lỗi bị ẩn tới khi chạy app thật (nhật ký 08/01 điểm 1).
+- Argon2 chạy trên threadpool của libuv: `UV_THREADPOOL_SIZE` giới hạn số hash song song và trần thông lượng của `/login`.
+
 ## 4. Tech stack và tác động (Impact techstack)
 
 | Lớp | Công nghệ chọn | Vì sao chọn | Thay thế tương đương |
@@ -135,7 +141,42 @@ sequenceDiagram
 | Số lần thử sai liên tiếp trước khi bị chặn | Vô hạn | 10 lần / 15 phút theo tài khoản | Test tích hợp gửi 11 request sai, request thứ 11 nhận 429 |
 
 > Số "trước" là minh họa để hình dung bài toán. Số "mục tiêu" chỉ được coi là đạt khi có số đo thật
-> ở mục 8 kèm môi trường đo.
+> ở mục 5.1 kèm môi trường đo.
+
+### 5.1 Số đã đo
+
+**Môi trường:** MacBook (Darwin 25.6.0, arm64, 8 vCPU, 16 GB RAM); Docker 28.5.1; PostgreSQL 16.15; Redis 7.4.6; Node v20.19.6; k6 v1.4.2; `@node-rs/argon2` 2.2.2. Nguồn điện AC, nắp mở, không có khoảng máy ngủ; `load1` 5–9 (máy chạy chung với container `mysql_server`, `rabbitmq` của dự án khác). Quy mô: 10.000 user seed (MD5 không salt), từ điển tổng hợp 100.000 ứng viên, 200 tài khoản bench cho k6. File thô ở `bench/results/main/` (không commit).
+
+**Tham số Argon2id chọn (`hash-params.json`):** quét 9 bộ ≥ tối thiểu OWASP cho web, chọn **m=65536 KiB (64 MiB), t=5, p=1** — trung vị **106,5 ms/hash** (103,2–110,3). Lý do: 64 MiB khớp "lựa chọn thứ hai" của RFC 9106; p=1 để dễ kiểm soát threadpool; t=5 để đạt ~100 ms trên máy này. Vài mốc khác (trung vị): m=19456/t=2 = 9,5 ms · m=47104/t=1 = 12,8 ms · m=65536/t=3 = 62,9 ms · m=98304/t=3 = 102,9 ms · m=131072/t=3 = 139,5 ms.
+
+**Thử từ điển offline trên TOÀN BỘ bản dump (mọi cột: `password_md5` và `password_hash`) — đo lại 2026-10-09 sau khi sửa lỗi, file `bench/results/fix/crack-truoc.json` và `crack-sau.json`:**
+
+| Chỉ số | Dump TRƯỚC migration | Dump SAU migration (đã xóa MD5) |
+|---|---|---|
+| Dòng còn cột MD5 | 10.000/10.000 | **0/10.000** |
+| Tốc độ thử một ứng viên | ~1,19 triệu/giây qua MD5 (CPU 1 luồng; GPU hàng tỷ/giây — minh họa) | **9,1 verify/giây** qua Argon2id (110,2 ms/verify) |
+| Tỷ lệ dump bẻ được bằng từ điển 100k | **85,2 %** (8.522) trong 0,08 s | **0 %** khi pepper giữ bí mật (thử đúng mật khẩu 50 TK → 0); nếu pepper cũng lộ: ngoại suy p50 22,5 phút/TK, p90 2,2 giờ/TK (đối chứng thật 268/269 TK mật khẩu top trong 400 verify) |
+
+*(Nhãn: 85,2 % phụ thuộc giả định phân phối mật khẩu user lab — "minh họa"; tốc độ thử và số bẻ được — "đã đo"; thời gian cho tài khoản chưa thử thật — "ngoại suy" = verify đã đo × vị trí trong từ điển. Load 8,4–11,5 khi đo, cao hơn lượt chính, nên verify chậm hơn 99,2 ms của lượt chính.)*
+
+> **Đính chính:** bản trước của mục này (`bench/results/main/crack.json`) báo "0 % khi không lộ pepper" nhưng chỉ thử cột `password_hash`; migration lúc đó giữ nguyên `password_md5`, nên dump thật vẫn lộ 85,2 %. Số đúng là bảng trên. Tham số Argon2id và số `/login` p95 không đổi (lượt `main`, không đo lại).
+
+**Độ trễ `/login` dưới tải (`login.json`, 50 VU, 30 s, 3 vòng xoay thứ tự, UV_THREADPOOL_SIZE=4):**
+
+| Chỉ số | `/truoc/login` (MD5) | `/sau/login` (Argon2id v2) |
+|---|---|---|
+| p95 | **8,4 ms** (8,3 / 8,5 / 8,4) | **1.610 ms** (1.588 / 1.766 / 1.610) |
+| p50 | ~6,3 ms | ~1.500 ms |
+| Thông lượng | ~7.500 req/s | ~32 req/s |
+| CPU API mỗi vòng 30 s | ~32 giây-CPU (≈1 lõi) | ~123 giây-CPU (≈4 lõi = UV_THREADPOOL_SIZE) |
+
+**Ảnh hưởng của `UV_THREADPOOL_SIZE` (bản sau, 50 VU, 20 s):** 2 → 17,3 req/s, p95 3.069 ms · 4 → 30 req/s, p95 2.424 ms · 8 → 39,7 req/s, p95 1.573 ms. Argon2 chạy trên threadpool libuv, nên thông lượng tăng gần tuyến tính theo số luồng và p95 giảm.
+
+**Hành vi (Vitest, 14/14 xanh) + phép thử âm (6/6 drill đúng test kỳ vọng đỏ, `bench/results/fix/drills/summary.json`):** cùng mật khẩu → hai hash khác nhau (salt); hash cũ version 1 đăng nhập đúng → `hash_version` thành 2 và verify thẳng mật khẩu; sai 11 lần → 429; mật khẩu 100 ký tự không bị cắt (đổi ký tự thứ 100 thì verify thất bại); sau migration và sau nâng cấp không còn dòng nào mang `password_md5`.
+
+**Đối chiếu mục tiêu:** verify 100–300 ms **đạt** (106,5 ms); "hai TK cùng mật khẩu → hash khác" **đạt**; "429 sau 10 lần sai" **đạt**; "lộ DB không còn là lộ mật khẩu" **đạt sau khi sửa** (toàn bộ dump: 85,2 % → 0 % khi giữ pepper; bản đầu không đạt vì còn cột MD5). Riêng "`/login` p95 ≤ trước + 300 ms với 50 VU đồng thời" **KHÔNG đạt** (1.610 ms so với 8,4 ms): băm CỐ Ý tốn ~106 ms và threadpool 4 luồng nên 50 request đồng thời xếp hàng — đúng đánh đổi ở mục 6. Chi phí mỗi hash (~106 ms) là thứ ta kiểm soát; p95 dưới đồng thời phải chỉnh bằng số pod / `UV_THREADPOOL_SIZE` (UV=8 kéo p95 từ ~2,4 s xuống ~1,6 s) hoặc giảm tham số.
+
+**Hạn chế:** seed 10.000 (nhỏ hơn 1,8 triệu ở mục 1); từ điển tổng hợp (phân phối giả định); tấn công Argon2id là ngoại suy (chỉ bẻ thật 268 TK mật khẩu top); máy chạy chung container dự án khác (load 5–9), nên số độ trễ đọc cùng mức tranh CPU.
 
 **Tác động nghiệp vụ mong đợi:** một lần lộ DB không còn đồng nghĩa với mất toàn bộ tài khoản — chi phí bẻ từng mật khẩu đủ cao để phần lớn người dùng kịp đổi; sàn tránh được đợt ép đổi mật khẩu diện rộng và các khiếu nại dây chuyền.
 
@@ -161,38 +202,62 @@ sequenceDiagram
 
 - OWASP Cheat Sheet Series, "Password Storage Cheat Sheet" — https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html — thứ tự ưu tiên Argon2id, scrypt, bcrypt, PBKDF2; tham số tối thiểu khuyến nghị; pepper; cách nâng cấp hash cũ bằng bọc và băm lại khi đăng nhập.
 - Biryukov, Dinu, Khovratovich, Josefsson, RFC 9106, *Argon2 Memory-Hard Function for Password Hashing and Proof-of-Work Applications*, 2021 — https://www.rfc-editor.org/rfc/rfc9106 — đặc tả Argon2id và khuyến nghị tham số theo tài nguyên sẵn có.
-- node-argon2, thư viện `argon2` cho Node.js — https://github.com/ranisalt/node-argon2 — API băm/xác minh, định dạng PHC string, hành vi chạy trên threadpool dùng ở mục 4.
+- `@node-rs/argon2` (napi-rs), thư viện Argon2id cho Node.js — https://www.npmjs.com/package/@node-rs/argon2 — API `hash`/`verify`/`parseOptions`, định dạng PHC string, tham số `secret` (pepper). Lab chọn gói này thay `argon2` (node-argon2) vì prebuild `darwin-arm64` của node-argon2 0.45.1 bị lỗi trên máy đích (xem mục 3.4, nhật ký 19/01).
+- OWASP Cheat Sheet Series, "Authentication Cheat Sheet" và "Credential Stuffing Prevention Cheat Sheet" — https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html , https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html — lỗi chung không phân biệt tài khoản, chống dò tài khoản, và giới hạn thử online (bộ đếm sai).
 - NestJS docs, "Authentication" — https://docs.nestjs.com/security/authentication — cấu trúc module auth dùng cho phần thực hành.
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng Postgres + Redis; seed 10.000 user với MD5 không salt (`src/truoc/`); viết script "kẻ tấn công" thử từ điển 100k mật khẩu phổ biến lên file hash, ghi tỷ lệ bẻ được.
-- [ ] Bước 2: đo "trước": thời gian thử mỗi ứng viên, p95 `/login` bằng k6, số tài khoản bẻ được.
-- [ ] Bước 3: áp dụng pattern: `PasswordHasher` Argon2id (chọn tham số bằng benchmark trên máy đích), migration bọc hash cũ, nâng cấp khi đăng nhập, bộ đếm sai trong Redis.
-- [ ] Bước 4: đo "sau" cùng kịch bản, chạy lại script tấn công trên file hash mới, ghi vào mục 5 kèm môi trường.
-- [ ] Bước 5: test Vitest: cùng mật khẩu cho hash khác; hash cũ đăng nhập đúng thì `hash_version` thành 2; sai 11 lần thì 429; mật khẩu 100 ký tự không bị cắt.
+- [x] Bước 1: dựng Postgres + Redis (`docker compose up -d --wait`); seed 10.000 user MD5 không salt (`scripts/seed.ts`, MD5 ở `src/shared/md5.ts` dùng bởi `src/truoc/`); script "kẻ tấn công" (`bench/crack-dictionary.ts`) thử từ điển TỔNG HỢP 100k (`bench/lib/dictionary.ts`, sinh bằng code, không tải list lộ) → **85,2 %** bẻ được cột MD5.
+- [x] Bước 2: đo "trước": tốc độ thử ~1,21 triệu ứng viên/giây, p95 `/truoc/login` 8,4 ms, 8.522/10.000 TK bẻ được (mục 5.1).
+- [x] Bước 3: `PasswordHasher` Argon2id (`src/sau/`, tham số chọn bằng `bench/hash-params.bench.ts` → m=65536,t=5,p=1), PHC string, `needsRehash`, migration bọc `argon2id(md5)` **và xóa `password_md5`** trong cùng câu UPDATE (`src/sau/wrap-legacy-migration.ts`, gọi từ `scripts/migrate-wrap.ts`), nâng cấp cơ hội khi đăng nhập (`hash_version`, cũng xóa MD5), bộ đếm sai Redis (429 sau 10 lần).
+- [x] Bước 4: đo "sau" cùng kịch bản + chạy lại tấn công trên **toàn bộ dump sau migration** (mọi cột): 0 % bẻ được (cột MD5 đã xóa; cột Argon2id cần pepper); p95 `/sau/login` 1.610 ms (mục 5.1).
+- [x] Bước 5: test Vitest (14/14) + phép thử âm (`bench/negative-drills.ts`, 6/6): cùng mật khẩu cho hash khác; hash cũ đăng nhập đúng thì `hash_version` thành 2; sai 11 lần thì 429; mật khẩu 100 ký tự không bị cắt; sau migration/nâng cấp không còn dòng nào mang `password_md5`.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code (thật)**
 ```text
 src/
-  truoc/login-md5.ts            # tái hiện cách lưu cũ
-  sau/password-hasher.ts        # [PATTERN] Argon2id + PHC string + kiểm tra cần băm lại
-  sau/legacy-hash-adapter.ts    # xác minh argon2id(md5) trong giai đoạn di trú
-  sau/login.service.ts          # xác minh, nâng cấp cơ hội, bộ đếm sai
-  shared/db.ts
-  shared/redis.ts
+  truoc/login-md5.service.ts    # tái hiện cách lưu cũ: so MD5(pw) với cột
+  truoc/truoc.controller.ts     # POST /truoc/login
+  sau/password-hasher.ts        # [PATTERN] Argon2id + PHC string + needsRehash (tự parse)
+  sau/legacy-hash-adapter.ts    # [PATTERN] verify argon2id(md5) cho hash_version=1
+  sau/login.service.ts          # [PATTERN] verify theo version, nâng cấp cơ hội, bộ đếm sai
+  sau/failed-login-counter.ts   # [PATTERN] bộ đếm sai Redis → 429
+  sau/wrap-legacy-migration.ts  # [PATTERN] bọc argon2id(md5) + xóa password_md5 trong cùng UPDATE
+  sau/sau.controller.ts         # POST /sau/login
+  shared/db.ts  shared/redis.ts  shared/md5.ts  shared/shared.module.ts
+scripts/
+  seed.ts                       # seed 10.000 user MD5 (pnpm db:seed)
+  migrate-wrap.ts               # gọi wrapLegacyHashes cho toàn bảng (pnpm migrate:wrap)
 bench/
-  hash-params.bench.ts          # đo thời gian hash theo m, t, p
-  login.k6.js
-  crack-dictionary.ts           # script "tấn công" offline để so sánh trước/sau
+  lib/dictionary.ts             # từ điển tổng hợp 100k, deterministic (không tải list lộ)
+  hash-params.bench.ts  crack-dictionary.ts  run-login.ts  login.k6.js  negative-drills.ts
 test/
-  password-hasher.test.ts
-  login-upgrade.test.ts
-docker-compose.yml
+  password-hasher.test.ts  login-upgrade.test.ts  rate-limit.test.ts  migration.test.ts
+db/schema.sql  docker-compose.yml  .env.example
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(đã chạy từ đầu trên máy sạch)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+docker compose up -d --wait            # PostgreSQL 55432 + Redis 56379
+pnpm install
+cp .env.example .env                   # đặt PASSWORD_PEPPER ngẫu nhiên khi chạy thật
+pnpm test                              # 14 test (cần db:up; KHÔNG cần seed)
+# Tái hiện số đo (đặt PASSWORD_PEPPER, ARGON2_* như .env; RUN=<tên> ghi vào bench/results/<tên>).
+# Sửa db/schema.sql thì phải `docker compose down -v` rồi dựng lại: schema chỉ nạp lúc tạo volume.
+RUN=main pnpm bench:params             # chọn tham số Argon2id trên máy này
+SEED_COUNT=10000 pnpm db:seed          # 10.000 user MD5 không salt
+RUN=fix OUT_NAME=crack-truoc.json pnpm bench:crack   # tấn công cả dump TRƯỚC migration (còn cột MD5)
+pnpm migrate:wrap                      # bọc argon2id(md5) + xóa password_md5 (~5 phút ở tham số thật)
+RUN=fix OUT_NAME=crack-sau.json pnpm bench:crack     # tấn công cả dump SAU migration (mọi cột)
+RUN=main pnpm bench:login              # p95 /login trước/sau + quét UV_THREADPOOL_SIZE
+RUN=fix pnpm bench:drills              # phép thử âm (6 drill)
 ```
+
+## Bài học sau khi làm
+
+- **Salt đánh bại rainbow table, slow-hash đánh bại brute-force, pepper đánh bại chính việc lộ DB.** Đo thật trên toàn bộ dump: trước migration 85,2 % bẻ được trong 0,08 giây; sau migration (đã xóa MD5) chỉ còn Argon2id, ~9–10 verify/giây — và nếu pepper không lộ cùng DB thì 0 %. Ba lớp bảo vệ bù cho nhau, không thay nhau.
+- **Chi phí băm là con dao hai lưỡi, phải đo trên máy đích.** Tham số cho ~106 ms/hash (RFC 9106 §4) khiến `/login` p95 ở 50 VU đồng thời lên ~1,6 giây vì threadpool libuv chỉ 4 luồng — chính endpoint đăng nhập thành điểm DoS nếu không giới hạn đồng thời. `UV_THREADPOOL_SIZE` 2→4→8 kéo thông lượng 17→30→40 req/s: số luồng và số pod phải tính vào quy mô, không chỉ chọn tham số cho đẹp.
+- **Nâng cấp hash không cần mật khẩu gốc — nhưng phải XÓA hash cũ cùng lúc.** Migration bọc `argon2id(md5)` đóng lỗ hổng ngay trong đêm; `hash_version` + băm lại khi đăng nhập dần thay bằng `argon2id(mật khẩu thật)`. Một cột `hash_version` cho cả cách đóng lỗ tức thì lẫn cách đo tiến độ di trú bằng một câu SQL. **Bài học đắt nhất:** bản đầu tiên bọc hash mới mà GIỮ nguyên cột `password_md5`, nên dump sau migration vẫn lộ 85 % mật khẩu — "đã áp pattern" nhưng chưa đóng lỗ. Lỗi này **lọt qua 12 test và 4 phép thử âm** (chúng chỉ kiểm cột `password_hash`) và chỉ bị phát hiện khi người điều phối **dump cả bảng lúc kiểm đầu cuối**. Sửa: `password_md5 = NULL` ngay trong câu `UPDATE` của migration và trong `rehash`; thêm test bất biến "không còn dòng nào mang `password_md5` sau migration/nâng cấp" + 2 phép thử âm; và script tấn công nay thử MỌI cột của dump (không chỉ cột hash mới).
+- **Lỗi gặp thật:** (1) `argon2` (node-argon2 0.45.1) có prebuild `darwin-arm64` nhưng là binary Linux → Node thoát mã 139; chuyển sang `@node-rs/argon2` (napi, gói nền tảng riêng). (2) NestJS chạy bằng `tsx` không phát `design:paramtypes` nên phải `@Inject` tường minh — test Vitest vẫn xanh nên lỗi chỉ lộ khi chạy app thật qua `bench/run-login.ts` (nhật ký 08/01 điểm 1). (3) ioredis `enableOfflineQueue:false` khiến test phải chờ `ready` trước `flushdb`.
+- **Hạn chế số đo:** từ điển là tổng hợp (tỷ lệ bẻ được phụ thuộc giả định phân phối — minh họa); tấn công Argon2id là ngoại suy từ tốc độ verify đã đo; seed 10.000 (< 1,8 triệu ở bối cảnh); máy chạy chung container dự án khác (load 5–9).

@@ -1,0 +1,7 @@
+node_modules/
+bench/results/
+.data/
+dist/
+.env
+# File sinh ra từ script (từ điển tổng hợp, file hash dump): sinh lại bằng script, không commit.
+bench/generated/

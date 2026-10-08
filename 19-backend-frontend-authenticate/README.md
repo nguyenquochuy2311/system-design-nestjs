@@ -37,7 +37,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [Password Hashing (Argon2id / bcrypt) — Lộ DB là lộ toàn bộ mật khẩu vì lưu MD5](./01-password-hashing-argon2-lo-db-la-lo-mat-khau/) | 🟢 | OWASP "Password Storage Cheat Sheet"; RFC 9106 (Argon2) | 📋 |
+| 01 | [Password Hashing (Argon2id / bcrypt) — Lộ DB là lộ toàn bộ mật khẩu vì lưu MD5](./01-password-hashing-argon2-lo-db-la-lo-mat-khau/) | 🟢 | OWASP "Password Storage Cheat Sheet"; RFC 9106 (Argon2) | ✅ |
 | 02 | [Session Cookie vs JWT — SPA + API: lưu token ở localStorage (XSS) hay cookie (CSRF)?](./02-session-cookie-vs-jwt-spa-luu-token-o-dau/) | 🟢 | OWASP "Session Management", "CSRF Prevention" cheat sheets; RFC 7519 (JWT); RFC 8725 (JWT BCP) | 📋 |
 | 03 | [OAuth 2.0 Authorization Code + PKCE — Đăng nhập bằng Google/Zalo cho SPA và app mobile không có nơi giữ secret](./03-oauth2-pkce-dang-nhap-google-cho-spa-va-mobile/) | 🟡 | RFC 6749; RFC 7636 (PKCE); RFC 9700 (OAuth 2.0 Security BCP, 2025); IETF draft "OAuth 2.0 for Browser-Based Apps" | 📋 |
 | 04 | [Refresh Token Rotation & Reuse Detection — Refresh token bị đánh cắp dùng được mãi](./04-refresh-token-rotation-token-bi-danh-cap-dung-mai/) | 🟡 | RFC 9700 (refresh token rotation / sender-constraining); OAuth 2.0 for Browser-Based Apps; Auth0 docs "Refresh Token Rotation" | 📋 |

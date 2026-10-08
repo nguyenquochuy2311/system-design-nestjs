@@ -145,6 +145,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | SpiceDB / OpenFGA | https://authzed.com/docs · https://openfga.dev/docs |
 | Let's Encrypt / ACME | https://letsencrypt.org/docs/ |
 | Node.js | https://nodejs.org/docs/ (process signals, streams, diagnostics) |
+| Argon2 (Node) | `@node-rs/argon2` https://www.npmjs.com/package/@node-rs/argon2 (napi-rs, prebuilt theo nền tảng, có darwin-arm64) · node-argon2 https://github.com/ranisalt/node-argon2 (URL kiểm 2026-10-08; node-argon2 0.45.1 prebuild darwin-arm64 lỗi — nhật ký 19/01) |
 | Reactive Streams | https://www.reactive-streams.org/ · WHATWG Streams https://streams.spec.whatwg.org/ |
 
 ## D. Chuẩn, RFC, spec
@@ -263,7 +264,7 @@ thời điểm viết (2026-10): `claude-opus-5-5` ($4 / $20 mỗi triệu token
 
 | Mã | Tài liệu |
 |---|---|
-| OWASP-CS | OWASP Cheat Sheet Series https://cheatsheetseries.owasp.org/ — Password Storage, Session Management, CSRF Prevention, File Upload, Docker Security |
+| OWASP-CS | OWASP Cheat Sheet Series https://cheatsheetseries.owasp.org/ — Password Storage, Authentication, Credential Stuffing Prevention, Session Management, CSRF Prevention, File Upload, Docker Security |
 | OWASP-API | OWASP API Security Top 10 (2023) https://owasp.org/API-Security/ — API1 Broken Object Level Authorization |
 | OWASP-LLM | OWASP Top 10 for LLM Applications (2025) https://genai.owasp.org/ — LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM06 Excessive Agency |
 
