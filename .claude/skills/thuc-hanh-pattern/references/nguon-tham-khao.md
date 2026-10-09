@@ -80,7 +80,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | RabbitMQ | https://www.rabbitmq.com/docs (Dead Letter Exchanges, Delayed Message plugin) |
 | NATS / JetStream | https://docs.nats.io/ (Request-Reply) |
 | Moleculer | https://moleculer.services/docs/ (Transporters) |
-| BullMQ | https://docs.bullmq.io/ |
+| BullMQ | https://docs.bullmq.io/ · Telemetry https://docs.bullmq.io/guide/telemetry (tùy chọn `telemetry` + gói `bullmq-otel` tự truyền context qua job; URL kiểm 2026-10-09) |
 | Temporal | https://docs.temporal.io/ |
 | AWS SQS | https://docs.aws.amazon.com/sqs/ (Dead-letter queues, Delay queues) |
 | AWS S3 | https://docs.aws.amazon.com/s3/ (Presigned URLs, Multipart upload, Lifecycle, Storage classes, Versioning, Object Lock) |
@@ -128,6 +128,10 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | Semantic Versioning | https://semver.org/ |
 | OpenTelemetry | https://opentelemetry.io/docs/ · GenAI semantic conventions https://opentelemetry.io/docs/specs/semconv/gen-ai/ |
 | OpenTelemetry semantic conventions — metric (URL kiểm 2026-10-09) | HTTP metrics https://opentelemetry.io/docs/specs/semconv/http/http-metrics/ (`http.server.request.duration`, `http.client.request.duration`: histogram giây, Stable; bucket khuyến nghị 0.005 … 10; `http.route` chỉ khi có; `error.type`; method lạ → `_OTHER`) · Database metrics https://opentelemetry.io/docs/specs/semconv/database/database-metrics/ (`db.client.operation.duration` Stable; `db.client.connection.count/max/pending_requests/wait_time` Development) · Node.js runtime metrics https://opentelemetry.io/docs/specs/semconv/runtime/nodejs-metrics/ (`nodejs.eventloop.delay.p99/max`, `nodejs.eventloop.utilization`, Development) |
+| OpenTelemetry logs (URL kiểm 2026-10-09) | Logs concepts https://opentelemetry.io/docs/concepts/signals/logs/ · Logs Data Model https://opentelemetry.io/docs/specs/otel/logs/data-model/ (`Timestamp`, `ObservedTimestamp`, `TraceId`, `SpanId`, `SeverityText`, `Body`, `Resource`) · Trace Context in non-OTLP Log Formats https://opentelemetry.io/docs/specs/otel/compatibility/logging_trace_context/ (tên trường `trace_id`, `span_id`, `trace_flags` khi log dạng JSON) · Collector `filelog` receiver https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/filelogreceiver/README.md (`include`, `start_at`, operator `json_parser`, `filter`, `move`, `trace_parser`, `severity_parser`) |
+| pino (URL kiểm 2026-10-09) | https://getpino.io/ · Redaction https://github.com/pinojs/pino/blob/main/docs/redaction.md (`redact.paths`, `censor` là chuỗi hoặc hàm) · API https://github.com/pinojs/pino/blob/main/docs/api.md (`mixin`, `formatters`, `serializers`, `messageKey`, `pino.destination({ sync })`) |
+| Grafana Loki (URL kiểm 2026-10-09) | https://grafana.com/docs/loki/latest/ · Label best practices https://grafana.com/docs/loki/latest/get-started/labels/bp-labels/ (label ít giá trị; không đưa id vào label) · Structured metadata https://grafana.com/docs/loki/latest/get-started/labels/structured-metadata/ · OTLP ingestion https://grafana.com/docs/loki/latest/send-data/otel/ (`service.name` → label `service_name`; attribute khác → structured metadata) · LogQL https://grafana.com/docs/loki/latest/query/ , log queries https://grafana.com/docs/loki/latest/query/log_queries/ (line filter, parser `json`, `__error__`) |
+| Docker logging driver `json-file` | https://docs.docker.com/engine/logging/drivers/json-file/ (tùy chọn `labels`, `max-size`, `max-file`; URL kiểm 2026-10-09) |
 | OpenTelemetry Collector `prometheus` exporter (URL kiểm 2026-10-09) | https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/prometheusexporter/README.md (`resource_constant_labels` thay `resource_to_telemetry_conversion` đã deprecated; `translation_strategy`; `metric_expiration` mặc định 5m; `service.name`/`service.instance.id` thành `job`/`instance`) |
 | Prometheus | https://prometheus.io/docs/ (Histograms and summaries) · trang cụ thể (URL kiểm 2026-10-09): Metric and label naming https://prometheus.io/docs/practices/naming/ (không dùng label có cardinality cao) · Recording rules (quy ước `level:metric:operations`) https://prometheus.io/docs/practices/rules/ · Alerting rules (`for`, pending → firing) https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/ · HTTP API (`/api/v1/query`, `/api/v1/alerts`) https://prometheus.io/docs/prometheus/latest/querying/api/ |
 | postgres_exporter | https://github.com/prometheus-community/postgres_exporter (`DATA_SOURCE_URI`/`_USER`/`_PASS`; user không phải superuser dùng role `pg_monitor`; URL kiểm 2026-10-09) |
@@ -155,7 +159,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | Curity Token Handler | https://curity.io/resources/learn/the-token-handler-pattern/ |
 | SpiceDB / OpenFGA | https://authzed.com/docs · https://openfga.dev/docs |
 | Let's Encrypt / ACME | https://letsencrypt.org/docs/ |
-| Node.js | https://nodejs.org/docs/ (process signals, streams, diagnostics) |
+| Node.js | https://nodejs.org/docs/ (process signals, streams, diagnostics) · "A note on process I/O" trong https://nodejs.org/api/process.html (stdout là pipe: bất đồng bộ trên POSIX; là file: đồng bộ; URL kiểm 2026-10-09) |
 | Argon2 (Node) | `@node-rs/argon2` https://www.npmjs.com/package/@node-rs/argon2 (napi-rs, prebuilt theo nền tảng, có darwin-arm64) · node-argon2 https://github.com/ranisalt/node-argon2 (URL kiểm 2026-10-08; node-argon2 0.45.1 prebuild darwin-arm64 lỗi — nhật ký 19/01) |
 | Reactive Streams | https://www.reactive-streams.org/ · WHATWG Streams https://streams.spec.whatwg.org/ |
 
@@ -278,7 +282,7 @@ thời điểm viết (2026-10): `claude-opus-5-5` ($4 / $20 mỗi triệu token
 
 | Mã | Tài liệu |
 |---|---|
-| OWASP-CS | OWASP Cheat Sheet Series https://cheatsheetseries.owasp.org/ — Password Storage, Authentication, Credential Stuffing Prevention, Session Management, CSRF Prevention, File Upload, Docker Security |
+| OWASP-CS | OWASP Cheat Sheet Series https://cheatsheetseries.owasp.org/ — Password Storage, Authentication, Credential Stuffing Prevention, Session Management, CSRF Prevention, File Upload, Docker Security, Logging https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html (không log dữ liệu cá nhân, số thẻ, token; URL kiểm 2026-10-09) |
 | OWASP-API | OWASP API Security Top 10 (2023) https://owasp.org/API-Security/ — API1 Broken Object Level Authorization |
 | OWASP-LLM | OWASP Top 10 for LLM Applications (2025) https://genai.owasp.org/ — LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM06 Excessive Agency |
 

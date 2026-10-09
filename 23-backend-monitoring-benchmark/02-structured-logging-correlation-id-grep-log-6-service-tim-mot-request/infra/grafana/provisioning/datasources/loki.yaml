@@ -1,0 +1,18 @@
+# Datasource Loki của lab, uid cố định để dashboard JSON trỏ tới.
+apiVersion: 1
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # Bấm vào trace_id trong một dòng log → mở toàn bộ hành trình của request đó (mọi service) ngay trong Explore.
+      derivedFields:
+        - name: trace_id
+          matcherRegex: '"trace_id":"([0-9a-f]{32})"'
+          datasourceUid: loki
+          url: '{service_name=~".+"} | trace_id="$${__value.raw}"'

@@ -391,3 +391,54 @@ lưu bộ đếm.
 **Ảnh hưởng:** 23/02 (structured logging) và 23/04 (percentiles) dùng lại compose, gói `packages/observability` (chép
 sang bài) và quy ước (3)–(6); 23/03 (tracing) dùng cùng bộ SDK (thêm `sdk-trace` cùng phiên bản). Image chỉ bài 23/01
 dùng: không có (postgres, toxiproxy, k6, node đã có từ bài trước).
+
+## 2026-10-09 — Quy ước logging rút ra từ bài 23/02 (Structured Logging & Correlation ID)
+
+**Quyết định (dùng chung cho 23/03, 23/04 và mọi lab có log tập trung hoặc truyền context qua hàng đợi)**
+1. **Loki ghim tag + digest**: `grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193`
+   (index đa kiến trúc, có linux/arm64, phát hành 2026-09-17; 42,7 MB nén, 191 MB trên đĩa; image không có shell — Grafana
+   kiểm hộ `loki:3100/ready`). Cổng host 53100 (đã có trong bảng cổng, thêm vào `ports` của `kiem-chung-lab.mjs` cùng 3103).
+   Monolithic, filesystem, TSDB v13, `analytics.reporting_enabled: false`, `max_entries_limit_per_query` nâng lên 100.000 cho
+   bench đếm toàn bộ dòng. Image giữ lại trên máy cho 23/03.
+2. **Thu log theo 12factor bằng Collector `filelog` đọc file `json-file` của Docker** (đã kiểm trên Docker Desktop: mount
+   `/var/lib/docker/containers:ro` thấy thư mục của máy ảo): container khai `logging.options.labels: "lab.id,com.docker.compose.service"`;
+   Collector chạy `user: "0:0"` (file `root 0640`), `start_at: end`, lọc `attributes.attrs["lab.id"]` ngay trong receiver (thư
+   mục có log của project khác), `move` tên service Compose → `resource["service.name"]`, `json_parser` dòng ứng dụng →
+   `severity_parser` + `trace_parser`, xuất `otlp_http` tới `http://loki:3100/otlp`. Loki chỉ có label `service_name`;
+   `trace_id`/`span_id`/`severity_text` là structured metadata (lọc `| trace_id="…"` không cần `| json`). Tên mới ở contrib
+   0.161.0: `file_log`, `otlp_http` (tên cũ báo deprecated); exporter `loki` đã bị gỡ.
+3. **Gói `packages/logging`** (chép sang bài cần log): pino 10.3.1, schema `timestamp` (UTC ISO-8601), `level` (chữ),
+   `service`, `event`, `message`, `trace_id`, `span_id` (tên theo OTel "Trace Context in non-OTLP Log Formats"); API bắt buộc
+   `event` + `message` vì pino tự chép `err.message` vào `message` khi gọi `logger.error(err)`/`logger.error({ err })` không
+   kèm chuỗi (chuỗi đó không qua serializer). Che dữ liệu hai lớp: `redact` theo đường dẫn (hàm `censor` trả lại
+   `undefined`/`null` nguyên vẹn) + serializer `err` quét regex trên `message`/`stack`. Regex số di động VN và số thẻ (Luhn)
+   dùng ranh giới "không phải chữ/số/_" (trace_id hex). Trace id gắn bằng `mixin()` đọc context OpenTelemetry, không dùng
+   `instrumentation-pino` (không vá được code đã gói esbuild).
+4. **Trace context không cần exporter**: `BasicTracerProvider` (sdk-trace-base 2.11.0, không span processor) +
+   `AsyncLocalStorageContextManager` + `W3CTraceContextPropagator` (cùng bộ OTel với 23/01). Qua hàng đợi: producer chạy
+   `queue.add` trong span PRODUCER và ghi `traceparent` vào `job.data._trace`; consumer `propagation.extract` rồi chạy handler
+   trong span CONSUMER. BullMQ 6 coi `ioredis` là optional peer: cài `ioredis` 5.11.1 và truyền instance
+   `maxRetriesPerRequest: null`; Redis `noeviction`.
+5. **Test log trên dữ liệu thật, kiểm cả "có dữ liệu đã che"**: đọc Loki (`query_range`) và `docker compose logs` của cùng
+   cửa sổ; test "không có PII" phải kèm khẳng định trường vẫn được log ở dạng đã che (không thì test xanh giả khi trường
+   biến mất). Chờ log theo "hành trình xong" (dòng cuối của ledger), không chờ thời gian cố định.
+6. **Diễn tập điều tra sự cố đo khách quan** (mở rộng 23/01 điểm 8): runbook grep cố định viết trong script; bộ chấm điểm
+   dùng dữ kiện ẩn (số tiền riêng mỗi sự cố) để biết dòng nào đúng; đếm lệnh, dòng phải đọc, service ghép được, dòng lộ dữ
+   liệu cá nhân. Dữ liệu cá nhân trong lab là dải tổng hợp `09000000xx` và số thẻ thử nghiệm công khai.
+7. **Đo overhead của log bằng 4 biến thể cùng code** (`LOG_MODE=truoc|sau|off`, `LOG_SYNC=false`) và luôn kèm lượt 1 VU nối
+   tiếp: trên máy bận, p95/p99 dưới tải 150 req/s dao động giữa các vòng lớn hơn chênh lệch (23/02: tới 50 lần), còn 1 VU
+   cho chênh p50 ổn định (+0,3 – 0,5 ms mỗi request với 5 dòng log trên đường đi). pino giữ mặc định ghi đồng bộ (không mất
+   dòng khi tiến trình chết); `LOG_SYNC=false` chỉ có lợi rõ khi bão hòa. Test label của Loki bỏ qua label nội bộ `__…`
+   (`__stream_shard__` xuất hiện sau lượt tải).
+
+**Lý do:** kiểm trực tiếp ở bài 23/02 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** 23/03 (tracing) dùng lại `trace-context.ts`/`queue-context.ts` (thêm exporter), Collector và Loki (nhảy log ↔
+trace); 23/04 dùng Collector/Grafana đã ghim. Bảng cổng của skill ghi tag Loki ở dòng Tempo / Loki; danh mục nguồn thêm
+OpenTelemetry logs, pino, Grafana Loki, Docker `json-file`, OWASP Logging Cheat Sheet, BullMQ Telemetry, Node process I/O.
+
+## 2026-10-09 — Test không dùng chung "bộ đo" với code được kiểm (từ kiểm chứng bài 23/02)
+
+**Quyết định:** test kiểm một bất biến an toàn (không lộ PII, không còn hash cũ, không còn quyền thừa…) phải có bộ nhận diện **độc lập** với code được kiểm: viết riêng trong test (regex, hàm Luhn…) và/hoặc so với chính các giá trị đã gửi vào. Không import detector từ gói đang làm nhiệm vụ che/lọc.
+
+**Lý do:** ở 23/02, test quét log dùng `findPii` cùng regex với bộ che; làm yếu regex thì SĐT thô lọt vào Loki mà hai test quét vẫn xanh. Đổi sang bộ nhận diện riêng + kiểm giá trị đã gửi thì cùng phép thử âm đỏ 3/3.
+**Ảnh hưởng:** mọi bài có test kiểu "không có X trong dữ liệu đầu ra" (scope 19, 23, 13, 21…); phép thử âm của người điều phối nên thử làm yếu chính bộ lọc để xem test có mù theo không.

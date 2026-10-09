@@ -45,7 +45,7 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | Prometheus `prom/prometheus:v3.14.0` / Grafana `grafana/grafana:12.4.12` (nhật ký 23/01) | 59090 / 53000 |
 | OTel Collector `otel/opentelemetry-collector-contrib:0.161.0` (OTLP gRPC / HTTP) | 54317 / 54318 |
 | postgres_exporter `prometheuscommunity/postgres-exporter:v0.20.1` (exporter thêm: 59188...) | 59187 |
-| Tempo / Loki | 53200 / 53100 |
+| Tempo / Loki `grafana/loki:3.7.8` (nhật ký 23/02) | 53200 / 53100 |
 | Qdrant | 56333 |
 | Temporal | 57233 |
 | API của lab | 3100 (service thêm: 3101, 3102...) |

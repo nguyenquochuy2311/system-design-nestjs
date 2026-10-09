@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 173 | 0 | 20 |
+| 193 | 172 | 0 | 21 |
 
 ## Theo scope
 
@@ -34,7 +34,7 @@
 | [20 · Thiết kế hệ thống AI framework, cơ bản → nâng cao (`backend / AI framework system design`)](./20-backend-ai-framework-system-design/) | 10 | 3 | 4 | 3 | 10 | 0 | 0 |
 | [21 · Hạ tầng AI (`backend / AI infrastructure`)](./21-backend-ai-infrastructure/) | 8 | 2 | 4 | 2 | 8 | 0 | 0 |
 | [22 · Tối ưu AI: chi phí, độ trễ, chất lượng (`backend / AI optimizer`)](./22-backend-ai-optimizer/) | 10 | 4 | 4 | 2 | 10 | 0 | 0 |
-| [23 · Giám sát và benchmark (`backend / monitoring benchmark`)](./23-backend-monitoring-benchmark/) | 9 | 4 | 3 | 2 | 8 | 0 | 1 |
+| [23 · Giám sát và benchmark (`backend / monitoring benchmark`)](./23-backend-monitoring-benchmark/) | 9 | 4 | 3 | 2 | 7 | 0 | 2 |
 | [24 · Giám sát AI (`backend / AI monitoring`)](./24-backend-ai-monitoring/) | 9 | 2 | 6 | 1 | 9 | 0 | 0 |
 
 ## Chi tiết
@@ -329,7 +329,7 @@
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
 | [Four Golden Signals / RED / USE — Khách than chậm, không biết service nào chậm](./23-backend-monitoring-benchmark/01-four-golden-signals-red-method-khong-biet-service-nao-cham/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-09 |
-| [Structured Logging & Correlation ID — Grep log của 6 service để tìm một request của khách](./23-backend-monitoring-benchmark/02-structured-logging-correlation-id-grep-log-6-service-tim-mot-request/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Structured Logging & Correlation ID — Grep log của 6 service để tìm một request của khách](./23-backend-monitoring-benchmark/02-structured-logging-correlation-id-grep-log-6-service-tim-mot-request/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-10-09 |
 | [Distributed Tracing (OpenTelemetry) — Request đi qua 6 service, chậm ở đâu?](./23-backend-monitoring-benchmark/03-distributed-tracing-otel-request-qua-6-service-cham-o-dau/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Percentiles & Histograms — Trung bình 200 ms nhưng khách than chậm: p99 là 4 giây](./23-backend-monitoring-benchmark/04-percentiles-p99-trung-binh-200ms-nhung-khach-than-cham/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
 | [SLI / SLO / Error Budget — "Hệ thống ổn chưa?" không ai trả lời được bằng số](./23-backend-monitoring-benchmark/05-slo-error-budget-he-thong-on-chua-khong-co-so/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |

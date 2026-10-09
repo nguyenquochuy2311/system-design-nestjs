@@ -1,0 +1,96 @@
+# [PATTERN] Thu gom log theo 12factor: service chỉ ghi stdout; Collector đọc file log của Docker (driver json-file) như
+# DaemonSet đọc /var/log/pods trên Kubernetes, rồi đẩy về Loki qua OTLP. Đổi kho log là sửa file này, không sửa service.
+receivers:
+  file_log:
+    # Thư mục log container của máy ảo Docker Desktop (mount chỉ đọc, xem compose.yaml). Có cả log của project khác:
+    # mọi dòng không mang nhãn lab.id=23-02 bị bỏ ngay ở operator `filter` dưới, không đi tiếp.
+    include: [/var/lib/docker/containers/*/*-json.log]
+    # Chỉ đọc phần MỚI của file có sẵn lúc Collector khởi động; file xuất hiện sau đó (container mới) đọc từ đầu.
+    start_at: end
+    poll_interval: 200ms
+    include_file_name: false
+    operators:
+      # Mỗi dòng file: {"log":"<một dòng stdout>\n","stream":"stdout","attrs":{...nhãn container...},"time":"RFC3339Nano"}
+      - type: json_parser
+        id: docker
+        parse_to: attributes
+        timestamp:
+          parse_from: attributes.time
+          layout_type: gotime
+          layout: '2006-01-02T15:04:05.999999999Z07:00'
+      - type: filter
+        expr: 'attributes.attrs == nil || attributes.attrs["lab.id"] != "23-02"'
+      # Tên service lấy từ nhãn Compose → resource service.name → label service_name trong Loki.
+      - type: move
+        from: attributes.attrs["com.docker.compose.service"]
+        to: resource["service.name"]
+      - type: move
+        from: attributes.stream
+        to: attributes["log.iostream"]
+      - type: move
+        from: attributes.log
+        to: body
+      - type: remove
+        field: attributes.attrs
+      - type: remove
+        field: attributes.time
+      # Dòng là JSON (bản sau): đọc level, trace_id, span_id vào trường chuẩn của bản ghi OTel (SeverityText, TraceId,
+      # SpanId) — Loki lưu trace_id/span_id thành structured metadata, lọc được mà không cần `| json`. Nội dung dòng giữ
+      # nguyên. Dòng text tự do (bản trước) bỏ qua bước này.
+      - type: json_parser
+        id: app
+        if: 'body matches "^\\{"'
+        parse_from: body
+        parse_to: attributes.app
+        on_error: send_quiet
+      - type: severity_parser
+        if: 'attributes.app != nil && attributes.app.level != nil'
+        parse_from: attributes.app.level
+        on_error: send_quiet
+      - type: trace_parser
+        if: 'attributes.app != nil && attributes.app.trace_id != nil'
+        trace_id:
+          parse_from: attributes.app.trace_id
+        span_id:
+          parse_from: attributes.app.span_id
+        on_error: send_quiet
+      - type: remove
+        if: 'attributes.app != nil'
+        field: attributes.app
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 300
+  transform/trim:
+    log_statements:
+      # json-file giữ ký tự xuống dòng cuối của mỗi dòng stdout.
+      - context: log
+        statements:
+          - replace_pattern(log.body, "\\n$", "")
+  batch:
+    # Batch ngắn: log phải truy vấn được nhanh lúc điều tra sự cố (đo ở bench/ingest-latency.ts).
+    timeout: 200ms
+    send_batch_size: 1024
+
+exporters:
+  otlp_http/loki:
+    # Loki 3 nhận OTLP gốc ở /otlp (exporter `loki` cũ đã bị gỡ khỏi bản contrib).
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    logs:
+      receivers: [file_log]
+      processors: [memory_limiter, transform/trim, batch]
+      exporters: [otlp_http/loki]

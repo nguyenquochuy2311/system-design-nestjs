@@ -1,0 +1,180 @@
+# Lab 23/02: 4 service Fastify — gateway → topup → ledger, topup → BullMQ (Redis 7.4.6) → bank-adapter → ledger — và bộ
+# thu log: OTel Collector (filelog đọc stdout container) → Loki → Grafana. Mọi cổng chỉ mở trên 127.0.0.1.
+# Image ghim tag + digest (index đa kiến trúc, có linux/arm64; Collector/Grafana/node cùng digest với bài 23/01).
+# Mật khẩu Grafana lấy từ .env (chép từ .env.example), không có giá trị mặc định.
+# Bản "trước": LOG_MODE=truoc (console.log tự do, không trace context); "sau": LOG_MODE=sau (mặc định); đo overhead: off.
+name: lab-23-02
+
+x-node-service: &node-service
+  # Service là một file JS đã gói bằng esbuild (scripts/build-services.mjs, chạy sau `pnpm install`).
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "23-02"
+  # [PATTERN] Service chỉ ghi stdout. Driver json-file (mặc định) chép thêm nhãn lab.id và tên service Compose vào mỗi
+  # dòng của file log (`attrs`), để Collector biết dòng thuộc lab nào, service nào mà không cần docker.sock.
+  logging:
+    driver: json-file
+    options:
+      labels: "lab.id,com.docker.compose.service"
+      max-size: "50m"
+      max-file: "3"
+
+x-log-env: &log-env
+  LOG_MODE: ${LOG_MODE:-sau}
+  LOG_SYNC: ${LOG_SYNC:-true}
+  LAB_DRILL: ${LAB_DRILL:-}
+  REDIS_URL: redis://redis:6379
+
+services:
+  redis:
+    # BullMQ cần noeviction (không được evict key của hàng đợi); không lưu đĩa — hàng đợi của lab dùng xong bỏ.
+    image: redis:7.4.6@sha256:a9cc41d6d01da2aa26c219e4f99ecbeead955a7b656c1c499cce8922311b2514
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    labels:
+      lab.id: "23-02"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  ledger:
+    <<: *node-service
+    command: ["node", "ledger.mjs"]
+    environment:
+      <<: *log-env
+      PORT: "3103"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3103/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  bank-adapter:
+    <<: *node-service
+    command: ["node", "bank-adapter.mjs"]
+    environment:
+      <<: *log-env
+      PORT: "3102"
+      LEDGER_URL: http://ledger:3103
+    depends_on:
+      redis:
+        condition: service_healthy
+      ledger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3102/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  topup:
+    <<: *node-service
+    command: ["node", "topup.mjs"]
+    environment:
+      <<: *log-env
+      PORT: "3101"
+      LEDGER_URL: http://ledger:3103
+    depends_on:
+      redis:
+        condition: service_healthy
+      ledger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3101/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  gateway:
+    <<: *node-service
+    command: ["node", "gateway.mjs"]
+    environment:
+      <<: *log-env
+      PORT: "3100"
+      TOPUP_URL: http://topup:3101
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      topup:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3100/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  otel-collector:
+    # Image FROM scratch, không shell: Grafana kiểm hộ cổng health_check :13133. Chạy root CHỈ ĐỂ ĐỌC file log của
+    # Docker (root:root 0640); mount chỉ đọc. Không mount docker.sock.
+    image: otel/opentelemetry-collector-contrib:0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    user: "0:0"
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    labels:
+      lab.id: "23-02"
+    depends_on:
+      loki:
+        condition: service_started
+
+  loki:
+    # Image không có shell: Grafana kiểm hộ /ready.
+    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./infra/loki-config.yaml:/etc/loki/config.yaml:ro
+      - lokidata:/loki
+    ports:
+      - "127.0.0.1:53100:3100"
+    labels:
+      lab.id: "23-02"
+
+  grafana:
+    image: grafana/grafana:12.4.12@sha256:83be3e511ede559bee80e2215bb1987cb1246075461cb961beb515b0341e7aea
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Thiếu GRAFANA_ADMIN_PASSWORD - chép .env.example thành .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:53000:3000"
+    labels:
+      lab.id: "23-02"
+    depends_on:
+      loki:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      # Kiểm cả Loki /ready và Collector :13133 (hai image không có shell).
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"database\": *\"ok\"' && wget -qO- http://loki:3100/ready | grep -q ready && wget -qO- http://otel-collector:13133/ >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+
+  # Tạo tải trong cùng mạng Compose (nhật ký 02/03): `docker compose --profile bench run --rm k6 run /bench/<file>`.
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "23-02"
+
+volumes:
+  lokidata:
+    labels:
+      lab.id: "23-02"

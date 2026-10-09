@@ -82,7 +82,7 @@ step('pnpm test', 'pnpm -s test', { show: 4 });
 
 // 3. Dọn dẹp (trừ khi --keep-up) và kiểm cổng của bảng cổng lab.
 if (hasCompose && !flag('--keep-up')) step('docker compose down -v', 'docker compose down -v', { allowFail: true, show: 1 });
-const ports = '3100|3101|3102|3200|5173|53000|54317|54318|55432|55433|56379|56432|56433|58088|58401|58474|58500|59000|59090|59187';
+const ports = '3100|3101|3102|3103|3200|5173|53000|53100|54317|54318|55432|55433|56379|56432|56433|58088|58401|58474|58500|59000|59090|59187';
 const busy = sh(`lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk '$9 ~ /:(${ports})$/ {print $1" "$9}' | sort -u`).stdout.trim();
 console.log(busy ? `• Cổng lab còn bận:\n    ${busy.split('\n').join('\n    ')}` : '✔ Cổng lab trống');
 

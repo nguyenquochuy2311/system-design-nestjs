@@ -1,0 +1,10 @@
+# Nạp dashboard từ file JSON (infra/grafana/dashboards). Sửa trên giao diện không được lưu: truy vấn lưu sẵn là mã nguồn.
+apiVersion: 1
+providers:
+  - name: logging
+    folder: Logging
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

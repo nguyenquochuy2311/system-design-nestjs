@@ -1,0 +1,54 @@
+# Loki một tiến trình (monolithic), lưu trên filesystem trong volume của lab. Dựa trên /etc/loki/local-config.yaml của
+# image grafana/loki:3.7.8, thêm giới hạn cho lab và tắt gửi thống kê ra ngoài.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # [PATTERN] Label là chỉ mục: chỉ service_name (từ resource attribute service.name). trace_id, span_id của bản ghi OTLP
+  # đi vào structured metadata, còn topup_id nằm trong nội dung dòng JSON — không cái nào thành label (cardinality).
+  allow_structured_metadata: true
+  # Lượt đo overhead đẩy vài MB/s: nâng giới hạn mặc định (4 MB/s) để Loki không trả 429 làm mất log giữa chừng.
+  ingestion_rate_mb: 32
+  ingestion_burst_size_mb: 64
+  per_stream_rate_limit: 32MB
+  per_stream_rate_limit_burst: 64MB
+  retention_period: 24h
+  max_query_series: 1000
+  # Bench đếm dữ liệu cá nhân trên TOÀN BỘ dòng của một lượt (vài chục nghìn dòng) trong một truy vấn.
+  max_entries_limit_per_query: 100000
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+analytics:
+  reporting_enabled: false
