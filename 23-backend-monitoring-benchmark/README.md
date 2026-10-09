@@ -35,7 +35,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [Four Golden Signals / RED / USE — Khách than chậm, không biết service nào chậm](./01-four-golden-signals-red-method-khong-biet-service-nao-cham/) | 🟢 | Google SRE Book ch.6 "Monitoring Distributed Systems"; Tom Wilkie, "The RED Method" (2018); Brendan Gregg, "The USE Method" | 📋 |
+| 01 | [Four Golden Signals / RED / USE — Khách than chậm, không biết service nào chậm](./01-four-golden-signals-red-method-khong-biet-service-nao-cham/) | 🟢 | Google SRE Book ch.6 "Monitoring Distributed Systems"; Tom Wilkie, "The RED Method" (2018); Brendan Gregg, "The USE Method" | ✅ |
 | 02 | [Structured Logging & Correlation ID — Grep log của 6 service để tìm một request của khách](./02-structured-logging-correlation-id-grep-log-6-service-tim-mot-request/) | 🟢 | OpenTelemetry docs "Logs"; 12factor "Logs"; W3C Trace Context | 📋 |
 | 03 | [Distributed Tracing (OpenTelemetry) — Request đi qua 6 service, chậm ở đâu?](./03-distributed-tracing-otel-request-qua-6-service-cham-o-dau/) | 🟡 | Sigelman et al., "Dapper" (Google, 2010); OpenTelemetry docs "Traces"; W3C Trace Context | 📋 |
 | 04 | [Percentiles & Histograms — Trung bình 200 ms nhưng khách than chậm: p99 là 4 giây](./04-percentiles-p99-trung-binh-200ms-nhung-khach-than-cham/) | 🟢 | Gil Tene, "How NOT to Measure Latency" (2015); Prometheus docs "Histograms and summaries"; SRE Book ch.6 | 📋 |

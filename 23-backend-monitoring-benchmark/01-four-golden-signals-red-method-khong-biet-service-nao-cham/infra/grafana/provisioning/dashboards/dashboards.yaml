@@ -1,0 +1,10 @@
+# Nạp dashboard từ file JSON (infra/grafana/dashboards). Sửa trên giao diện không được lưu: dashboard là mã nguồn.
+apiVersion: 1
+providers:
+  - name: red-use
+    folder: RED-USE
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

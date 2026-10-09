@@ -1,0 +1,53 @@
+# [PATTERN] RED tính sẵn cho MỌI service bằng cùng một biểu thức: dashboard và alert đọc các series này thay vì
+# mỗi người tự viết PromQL. Tên theo quy ước của Prometheus "level:metric:operations" (level = label còn lại sau
+# aggregate). Cửa sổ [1m] để game day ngắn; production thường [5m].
+groups:
+  - name: red-service
+    interval: 5s
+    rules:
+      # Rate: số request/giây của mỗi service.
+      - record: service_name:http_server_requests:rate1m
+        expr: sum by (service_name) (rate(http_server_request_duration_seconds_count[1m]))
+
+      # Errors: tỉ lệ request lỗi. Theo semantic conventions, request lỗi là request có error.type: status 5xx
+      # (error.type = mã status) hoặc bị client bỏ ngang vì quá chậm (error.type = request_aborted, không có status).
+      # 4xx không phải lỗi của service. Vế `or ... * 0` cho ra 0 thay vì "không có series" khi chưa có lỗi nào,
+      # để mọi service luôn có đủ ba tín hiệu.
+      - record: service_name:http_server_errors:ratio_rate1m
+        expr: |
+          (
+            sum by (service_name) (rate(http_server_request_duration_seconds_count{error_type!=""}[1m]))
+            or
+            sum by (service_name) (rate(http_server_request_duration_seconds_count[1m])) * 0
+          )
+          / sum by (service_name) (rate(http_server_request_duration_seconds_count[1m]))
+
+      # Duration: phân vị tính từ bucket. Phải giữ `le` khi sum, nếu không histogram_quantile không còn bucket để tính.
+      - record: service_name:http_server_request_duration_seconds:p95_1m
+        expr: histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket[1m])))
+      - record: service_name:http_server_request_duration_seconds:p99_1m
+        expr: histogram_quantile(0.99, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket[1m])))
+
+  - name: red-route
+    interval: 5s
+    rules:
+      - record: service_name_http_route:http_server_requests:rate1m
+        expr: sum by (service_name, http_route) (rate(http_server_request_duration_seconds_count[1m]))
+      - record: service_name_http_route:http_server_request_duration_seconds:p95_1m
+        expr: histogram_quantile(0.95, sum by (le, service_name, http_route) (rate(http_server_request_duration_seconds_bucket[1m])))
+
+  - name: red-dependency
+    interval: 5s
+    rules:
+      # Phía client: service_name gọi server_address mất bao lâu. Khoanh vùng = service chậm mà lời gọi ra ngoài của
+      # nó không chậm (xem README mục 3.2).
+      - record: service_name_server_address:http_client_request_duration_seconds:p95_1m
+        expr: histogram_quantile(0.95, sum by (le, service_name, server_address) (rate(http_client_request_duration_seconds_bucket[1m])))
+      - record: service_name_server_address:http_client_errors:ratio_rate1m
+        expr: |
+          (
+            sum by (service_name, server_address) (rate(http_client_request_duration_seconds_count{error_type!=""}[1m]))
+            or
+            sum by (service_name, server_address) (rate(http_client_request_duration_seconds_count[1m])) * 0
+          )
+          / sum by (service_name, server_address) (rate(http_client_request_duration_seconds_count[1m]))

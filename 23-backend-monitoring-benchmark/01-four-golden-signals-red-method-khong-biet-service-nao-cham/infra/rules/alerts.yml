@@ -1,0 +1,31 @@
+# Alert dựa trên triệu chứng (RED) và một alert USE để chỉ ra tài nguyên. Ngưỡng là ngưỡng của lab (minh họa):
+# p95 > 500 ms hoặc > 5 % lỗi trong 30 s liên tục. Bài 06 bàn cách chọn ngưỡng và `for`.
+groups:
+  - name: red-alerts
+    interval: 5s
+    rules:
+      - alert: RedLatencyP95High
+        expr: service_name:http_server_request_duration_seconds:p95_1m > 0.5
+        for: 30s
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.service_name }}: p95 {{ $value | humanizeDuration }} (> 500 ms)"
+      - alert: RedErrorRatioHigh
+        expr: service_name:http_server_errors:ratio_rate1m > 0.05
+        for: 30s
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.service_name }}: {{ $value | humanizePercentage }} request lỗi (5xx hoặc bị bỏ ngang)"
+
+  - name: use-alerts
+    interval: 5s
+    rules:
+      - alert: DbPoolSaturated
+        expr: service_name:db_client_connection_pending_requests:max > 0 and service_name:db_client_connection_utilization:ratio >= 1
+        for: 30s
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $labels.service_name }}: pool DB dùng hết, {{ $value }} request đang chờ kết nối"

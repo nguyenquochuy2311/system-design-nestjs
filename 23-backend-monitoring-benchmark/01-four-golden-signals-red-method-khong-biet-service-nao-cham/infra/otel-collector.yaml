@@ -1,0 +1,45 @@
+# [PATTERN] Service chỉ biết OTLP và địa chỉ Collector; đổi backend (Prometheus → Mimir, VictoriaMetrics...) là sửa
+# file này, không sửa service.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200
+  batch:
+    timeout: 1s
+
+exporters:
+  # Phơi metric dạng Prometheus ở :8889 cho Prometheus scrape. Tên metric OTel → Prometheus: dấu chấm thành gạch dưới,
+  # thêm hậu tố đơn vị (_seconds, _bytes, _ratio) và _total cho counter; histogram thành _bucket/_count/_sum.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Ghi rõ cách đổi tên (mặc định có thể đổi giữa các phiên bản): thay ký tự đặc biệt bằng `_`, thêm hậu tố.
+    translation_strategy: UnderscoreEscapingWithSuffixes
+    # [PATTERN] service.name (resource attribute) thành label service_name trên mọi series. Chỉ lấy đúng attribute
+    # này (resource_to_telemetry_conversion cũ đã deprecated ở 0.161.0 và lấy MỌI attribute của resource).
+    resource_constant_labels:
+      included: ["service.name"]
+    # Series không nhận dữ liệu mới quá 2 phút thì bỏ (mặc định 5 phút), để service tắt instrumentation biến mất nhanh.
+    metric_expiration: 2m
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]

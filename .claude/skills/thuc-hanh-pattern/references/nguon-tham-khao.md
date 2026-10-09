@@ -50,7 +50,7 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | MMP | Kamil Grzybek, "Modular Monolith: A Primer", 2019. https://www.kamilgrzybek.com/blog/posts/modular-monolith-primer | |
 | SB-MM | Simon Brown, "Modular Monoliths" (bài nói, 2015+). https://simonbrown.je/ (cần xác minh URL slide) | |
 | USE | Brendan Gregg, "The USE Method". https://www.brendangregg.com/usemethod.html | |
-| RED | Tom Wilkie, "The RED Method: key metrics for microservices architecture", 2018 (bài nói / Grafana Labs blog) | (cần xác minh URL) |
+| RED | Tom Wilkie, "The RED Method" (phương pháp đưa ra năm 2015, bài nói 2018). Bài viết thuật lại trên blog Grafana Labs: "The RED Method: How to Instrument Your Services" (2018-08-03) https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/ (URL kiểm 2026-10-09; bài ghi Tom Wilkie tạo phương pháp, nhắc USE và Four Golden Signals) | |
 | ALERT | Rob Ewaschuk, "My Philosophy on Alerting" (nền của SRE ch.6). https://docs.google.com/document/d/199PqyG3UsyXlwieHaqbGiWVa8eMWi8zzAn0YfcApr8Q | |
 | OGO | OpenGitOps principles. https://opengitops.dev/ | |
 | 12FA | Dex Horthy, *12-Factor Agents*, 2025. https://github.com/humanlayer/12-factor-agents | Own your prompts, context window, launch/pause/resume |
@@ -127,10 +127,15 @@ hợp → paper → case study công khai → blog kỹ thuật.
 | GitHub CODEOWNERS | https://docs.github.com/articles/about-code-owners |
 | Semantic Versioning | https://semver.org/ |
 | OpenTelemetry | https://opentelemetry.io/docs/ · GenAI semantic conventions https://opentelemetry.io/docs/specs/semconv/gen-ai/ |
-| Prometheus | https://prometheus.io/docs/ (Histograms and summaries) |
+| OpenTelemetry semantic conventions — metric (URL kiểm 2026-10-09) | HTTP metrics https://opentelemetry.io/docs/specs/semconv/http/http-metrics/ (`http.server.request.duration`, `http.client.request.duration`: histogram giây, Stable; bucket khuyến nghị 0.005 … 10; `http.route` chỉ khi có; `error.type`; method lạ → `_OTHER`) · Database metrics https://opentelemetry.io/docs/specs/semconv/database/database-metrics/ (`db.client.operation.duration` Stable; `db.client.connection.count/max/pending_requests/wait_time` Development) · Node.js runtime metrics https://opentelemetry.io/docs/specs/semconv/runtime/nodejs-metrics/ (`nodejs.eventloop.delay.p99/max`, `nodejs.eventloop.utilization`, Development) |
+| OpenTelemetry Collector `prometheus` exporter (URL kiểm 2026-10-09) | https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/prometheusexporter/README.md (`resource_constant_labels` thay `resource_to_telemetry_conversion` đã deprecated; `translation_strategy`; `metric_expiration` mặc định 5m; `service.name`/`service.instance.id` thành `job`/`instance`) |
+| Prometheus | https://prometheus.io/docs/ (Histograms and summaries) · trang cụ thể (URL kiểm 2026-10-09): Metric and label naming https://prometheus.io/docs/practices/naming/ (không dùng label có cardinality cao) · Recording rules (quy ước `level:metric:operations`) https://prometheus.io/docs/practices/rules/ · Alerting rules (`for`, pending → firing) https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/ · HTTP API (`/api/v1/query`, `/api/v1/alerts`) https://prometheus.io/docs/prometheus/latest/querying/api/ |
+| postgres_exporter | https://github.com/prometheus-community/postgres_exporter (`DATA_SOURCE_URI`/`_USER`/`_PASS`; user không phải superuser dùng role `pg_monitor`; URL kiểm 2026-10-09) |
+| Grafana provisioning | https://grafana.com/docs/grafana/latest/administration/provisioning/ (datasource và dashboard từ file, provider `type: file`, `allowUiUpdates`; URL kiểm 2026-10-09) |
 | Grafana Pyroscope | https://grafana.com/docs/pyroscope/ · Parca https://www.parca.dev/docs/ |
 | k6 | https://grafana.com/docs/k6/ (open vs closed model) |
-| Toxiproxy | https://github.com/Shopify/toxiproxy (toxic `limit_data`, `timeout`; HTTP API điều khiển) |
+| Toxiproxy | https://github.com/Shopify/toxiproxy (toxic `limit_data`, `timeout`, `latency`; HTTP API điều khiển; bật/tắt proxy bằng `enabled`) |
+| Fastify | https://fastify.dev/docs/latest/Reference/Hooks/ (`onResponse` chạy sau khi đã gửi response; `onRequestAbort` khi client đóng kết nối trước lúc xử lý xong; URL kiểm 2026-10-09) |
 | Langfuse | https://langfuse.com/docs · Arize Phoenix https://docs.arize.com/phoenix |
 | LiteLLM | https://docs.litellm.ai/ |
 | vLLM | https://docs.vllm.ai/ (Automatic Prefix Caching, metrics) |

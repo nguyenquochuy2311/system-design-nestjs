@@ -1,0 +1,35 @@
+# [PATTERN] USE cho từng tài nguyên bên trong service (Brendan Gregg): Utilization, Saturation, Errors.
+# Tài nguyên của lab: pool kết nối DB, event loop, CPU tiến trình; và chính PostgreSQL (postgres_exporter).
+# Không có USE của máy host: Docker Desktop chạy container trong máy ảo Linux, node_exporter chỉ thấy máy ảo đó.
+groups:
+  - name: use-resource
+    interval: 5s
+    rules:
+      # Pool kết nối DB — U: đang dùng / tối đa; S: request chờ kết nối, thời gian chờ p95; E: lỗi câu lệnh.
+      - record: service_name:db_client_connection_utilization:ratio
+        expr: |
+          sum by (service_name) (db_client_connection_count{db_client_connection_state="used"})
+          / sum by (service_name) (db_client_connection_max)
+      - record: service_name:db_client_connection_pending_requests:max
+        expr: max by (service_name) (db_client_connection_pending_requests)
+      - record: service_name:db_client_connection_wait_time_seconds:p95_1m
+        expr: histogram_quantile(0.95, sum by (le, service_name) (rate(db_client_connection_wait_time_seconds_bucket[1m])))
+      - record: service_name:db_client_operation_duration_seconds:p95_1m
+        expr: histogram_quantile(0.95, sum by (le, service_name) (rate(db_client_operation_duration_seconds_bucket[1m])))
+      - record: service_name:db_client_operation_errors:rate1m
+        expr: |
+          sum by (service_name) (rate(db_client_operation_duration_seconds_count{error_type!=""}[1m]))
+          or sum by (service_name) (rate(db_client_operation_duration_seconds_count[1m])) * 0
+
+      # Event loop của Node — S: độ trễ p99 (event loop nghẽn thì mọi request chờ, dù CPU máy còn trống).
+      - record: service_name:nodejs_eventloop_delay_p99_seconds:max
+        expr: max by (service_name) (nodejs_eventloop_delay_p99_seconds)
+      # CPU tiến trình — U: số nhân đang dùng (1 = một nhân).
+      - record: service_name:process_cpu_time_seconds:rate1m
+        expr: sum by (service_name) (rate(process_cpu_time_seconds_total[1m]))
+
+      # PostgreSQL phía server — U: kết nối / max_connections; S: phiên đang chờ khóa (wait_event_type = Lock).
+      - record: postgres:pg_connections:utilization_ratio
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections)
+      - record: postgres:pg_stat_activity_active:count
+        expr: sum(pg_stat_activity_count{state="active"})

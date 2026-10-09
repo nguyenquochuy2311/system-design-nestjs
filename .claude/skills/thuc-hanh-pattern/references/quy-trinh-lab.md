@@ -42,8 +42,9 @@ Tránh cổng mặc định để không đụng dự án khác. Lab chạy tu�
 | Elasticsearch / OpenSearch | 59200 |
 | S3-compatible: RustFS `rustfs/rustfs:1.0.1` (thay MinIO; xem nhật ký 2026-10-07 về thao tác đã kiểm / chưa kiểm) | 59000 |
 | Keycloak | 58080 |
-| Prometheus / Grafana | 59090 / 53000 |
-| OTel Collector (gRPC / HTTP) | 54317 / 54318 |
+| Prometheus `prom/prometheus:v3.14.0` / Grafana `grafana/grafana:12.4.12` (nhật ký 23/01) | 59090 / 53000 |
+| OTel Collector `otel/opentelemetry-collector-contrib:0.161.0` (OTLP gRPC / HTTP) | 54317 / 54318 |
+| postgres_exporter `prometheuscommunity/postgres-exporter:v0.20.1` (exporter thêm: 59188...) | 59187 |
 | Tempo / Loki | 53200 / 53100 |
 | Qdrant | 56333 |
 | Temporal | 57233 |

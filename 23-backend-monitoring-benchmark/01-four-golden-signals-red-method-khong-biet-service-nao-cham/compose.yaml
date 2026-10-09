@@ -1,0 +1,231 @@
+# Lab 23/01: 3 service Fastify (gateway → checkout → promotion), PostgreSQL 16.15, Toxiproxy giữa checkout và DB,
+# và bộ giám sát: OTel Collector → Prometheus (recording rules RED/USE, alert) → Grafana; postgres_exporter cho DB.
+# Mọi cổng chỉ mở trên 127.0.0.1. Image ghim tag + digest (index đa kiến trúc, có linux/arm64; kiểm 2026-10-09).
+# Mật khẩu lấy từ .env (chép từ .env.example), không có giá trị mặc định.
+# Bản "trước": OTEL_SDK_DISABLED=true cho 3 service (cùng code, không phơi metric nào; chỉ còn log text).
+name: lab-23-01
+
+x-node-service: &node-service
+  # Service là một file JS đã gói bằng esbuild (scripts/build-services.mjs, chạy sau `pnpm install`).
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "23-01"
+  depends_on:
+    otel-collector:
+      condition: service_started
+
+x-otel-env: &otel-env
+  OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_METRIC_EXPORT_INTERVAL: "5000"
+
+services:
+  postgres:
+    image: postgres:16.15@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD - chép .env.example thành .env}
+      POSTGRES_DB: shop
+      SHOP_APP_PASSWORD: ${SHOP_APP_PASSWORD:?Thiếu SHOP_APP_PASSWORD - chép .env.example thành .env}
+      EXPORTER_PASSWORD: ${EXPORTER_PASSWORD:?Thiếu EXPORTER_PASSWORD - chép .env.example thành .env}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    labels:
+      lab.id: "23-01"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d shop"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  toxiproxy:
+    # Game day: toxic `latency` trên proxy checkout_db làm chậm đúng đoạn checkout → DB.
+    image: ghcr.io/shopify/toxiproxy:2.12.0@sha256:9378ed52a28bc50edc1350f936f518f31fa95f0d15917d6eb40b8e376d1a214e
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    ports:
+      - "127.0.0.1:58474:8474"
+    volumes:
+      - ./infra/toxiproxy.json:/config/toxiproxy.json:ro
+    labels:
+      lab.id: "23-01"
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  promotion:
+    <<: *node-service
+    command: ["node", "promotion.mjs"]
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: promotion
+      PORT: "3102"
+    ports:
+      - "127.0.0.1:3102:3102"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3102/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  checkout:
+    <<: *node-service
+    command: ["node", "checkout.mjs"]
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: checkout
+      PORT: "3101"
+      PROMOTION_URL: http://promotion:3102
+      DB_POOL_MAX: "10"
+      # Đi qua Toxiproxy, không nối thẳng postgres.
+      DATABASE_URL: postgres://shop_app:${SHOP_APP_PASSWORD}@toxiproxy:15432/shop
+    ports:
+      - "127.0.0.1:3101:3101"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      toxiproxy:
+        condition: service_healthy
+      promotion:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3101/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  gateway:
+    <<: *node-service
+    command: ["node", "gateway.mjs"]
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: gateway
+      PORT: "3100"
+      CHECKOUT_URL: http://checkout:3101
+      CHECKOUT_TIMEOUT_MS: "5000"
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      checkout:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3100/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  otel-collector:
+    # Bản contrib (có thêm processor/receiver cho bài 23/02, 23/03, 23/04); image FROM scratch, không có shell nên
+    # không có healthcheck trong container — Prometheus kiểm hộ cổng health_check :13133 (xem healthcheck của prometheus).
+    image: otel/opentelemetry-collector-contrib:0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:54317:4317"
+      - "127.0.0.1:54318:4318"
+    labels:
+      lab.id: "23-01"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+      # Cho phép POST /-/reload: phép thử âm sửa rule rồi nạp lại mà không dựng lại container.
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/rules:/etc/prometheus/rules:ro
+      - promdata:/prometheus
+    ports:
+      - "127.0.0.1:59090:9090"
+    labels:
+      lab.id: "23-01"
+    depends_on:
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/ready >/dev/null && wget -qO- http://otel-collector:13133/ >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
+    environment:
+      DATA_SOURCE_URI: postgres:5432/shop?sslmode=disable
+      DATA_SOURCE_USER: exporter
+      DATA_SOURCE_PASS: ${EXPORTER_PASSWORD:?Thiếu EXPORTER_PASSWORD - chép .env.example thành .env}
+    ports:
+      - "127.0.0.1:59187:9187"
+    labels:
+      lab.id: "23-01"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9187/metrics | grep -q '^pg_up 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  grafana:
+    image: grafana/grafana:12.4.12@sha256:83be3e511ede559bee80e2215bb1987cb1246075461cb961beb515b0341e7aea
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Thiếu GRAFANA_ADMIN_PASSWORD - chép .env.example thành .env}
+      # Không cho xem/sửa khi chưa đăng nhập, không cho tự đăng ký tài khoản.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Không gọi ra Internet lúc khởi động (cài plugin mặc định, kiểm bản mới, gửi thống kê).
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:53000:3000"
+    labels:
+      lab.id: "23-01"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"database\": *\"ok\"'"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # Tạo tải trong cùng mạng Compose (nhật ký 02/03): `docker compose --profile bench run --rm k6 run /bench/<file>`.
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "23-01"
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "23-01"
+  promdata:
+    labels:
+      lab.id: "23-01"

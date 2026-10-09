@@ -336,3 +336,58 @@ lưu bộ đếm.
 
 **Lý do:** (1)–(7) gặp hoặc kiểm trực tiếp ở bài 17/05 (mục 3.4, 5.1 của bài). Ma trận đo ở 17/05: migration chỉ lỗi ở tổ hợp PostgreSQL 16 + role không phải owner; 14.24 + role app vẫn thành công và role app sở hữu bảng.
 **Ảnh hưởng:** bài 17/06 (healthcheck, `depends_on`) và 17/08 (runtime config, secret) dùng lại `compose.yaml` + init + script kiểm lệch; 02/07 (multi-tenant, tách role migration/app) dùng lại (2) và (4). Image `postgres:14.24` chỉ bench của 17/05 dùng nên đã xóa sau bài (bench tự kéo lại khi chạy). Bảng cổng của skill không đổi (55432, 55433 đã có). Danh mục nguồn thêm dòng "PostgreSQL (trang cụ thể)" và "Docker Compose và image `postgres`".
+
+## 2026-10-09 — Quy ước observability rút ra từ bài 23/01 (Four Golden Signals / RED / USE)
+
+**Quyết định (dùng chung cho 23/02, 23/04 và mọi lab có metric/log/trace)**
+1. **Bộ image giám sát ghim tag + digest** (index đa kiến trúc, có linux/arm64, kiểm 2026-10-09; giữ trên máy cho các bài
+   sau): `otel/opentelemetry-collector-contrib:0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1`,
+   `prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0`,
+   `grafana/grafana:12.4.12@sha256:83be3e511ede559bee80e2215bb1987cb1246075461cb961beb515b0341e7aea`,
+   `prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e`.
+   Cổng host (chỉ `127.0.0.1`): Prometheus 59090, Grafana 53000, Collector OTLP 54317/54318, postgres_exporter **59187**
+   (mới, đã thêm vào bảng cổng của skill và `ports` của `kiem-chung-lab.mjs`). Bản contrib thay cho core (33 MB nén) để
+   23/02–23/04 có sẵn receiver/processor cho log và trace.
+2. **Service của lab observability chạy trong mạng Compose**: Fastify, gói bằng esbuild thành `dist/<service>.mjs` ngay
+   sau `pnpm install` (script `postinstall`), container `node:20-alpine` (ghim digest) mount `dist/` chỉ đọc, healthcheck
+   bằng `wget` (mẫu 02/03). Nhờ vậy `kiem-chung-lab.mjs` (install → `up --wait` → test) chạy được mà không build image.
+3. **Gói `packages/observability` là nơi duy nhất đặt tên metric**: OpenTelemetry SDK JS một bộ cùng ngày phát hành —
+   `@opentelemetry/api` 1.9.1, `sdk-metrics` 2.11.0, `resources` 2.11.0, `exporter-metrics-otlp-http` 0.222.0,
+   `semantic-conventions` 1.43.0 (không lấy bộ 2.12.0/0.223.0 ra ngày 2026-10-06). Ghi metric bằng tay theo semantic
+   conventions: `http.server.request.duration` (hook Fastify, `http.route` = `request.routeOptions.url`, ghi cả request
+   bị client bỏ ngang ở `onRequestAbort` với `error.type=request_aborted`), `http.client.request.duration`
+   (`server.address`), `db.client.connection.*` + `db.client.operation.duration` cho pool `pg`, `nodejs.eventloop.*`,
+   `process.cpu.time`, `process.memory.usage`; histogram khai `advice.explicitBucketBoundaries` (bucket mặc định của SDK
+   là cho mili giây); instrument tạo SAU `setGlobalMeterProvider` (API metric không có proxy). Tắt toàn bộ bằng biến
+   chuẩn `OTEL_SDK_DISABLED=true` (bản "trước", đo overhead).
+4. **Tên trong Prometheus** (Collector exporter `prometheus`, `translation_strategy: UnderscoreEscapingWithSuffixes`,
+   `resource_constant_labels: { included: ["service.name"] }` — `resource_to_telemetry_conversion` đã deprecated ở
+   0.161.0, `metric_expiration: 2m`): `http_server_request_duration_seconds_{bucket,count,sum}` với `service_name`,
+   `http_route`, `http_request_method`, `http_response_status_code`, `error_type`; `job` = `service.name` khi scrape với
+   `honor_labels: true`. Errors = series có `error_type` (5xx hoặc bị bỏ ngang), không chỉ 5xx. Recording rule đặt tên
+   `level:metric:operations` (`service_name:http_server_request_duration_seconds:p95_1m`), scrape và rule mỗi 5 s, cửa
+   sổ `[1m]` cho lab; Prometheus bật `--web.enable-lifecycle` để phép thử âm nạp lại rule. Image Collector không có
+   shell: healthcheck của Prometheus hỏi hộ `otel-collector:13133`.
+5. **Grafana của lab**: admin từ `.env` (`${GRAFANA_ADMIN_PASSWORD:?…}`, không mặc định), `GF_AUTH_ANONYMOUS_ENABLED=false`,
+   `GF_USERS_ALLOW_SIGN_UP=false`, `GF_PLUGINS_PREINSTALL_DISABLED=true` (Grafana 12 tự cài plugin từ Internet lúc khởi
+   động), datasource uid `prometheus` và dashboard JSON provisioning từ file (`allowUiUpdates: false`); không volume dữ
+   liệu. Test: ẩn danh 401, datasource health OK, mọi `expr` của dashboard chạy được trên Prometheus thật.
+6. **Test metric kiểm dữ liệu thật trong Prometheus, theo "sau − trước" của counter**, không `increase() > 0` và không
+   "có series": series MỚI mang sẵn giá trị đầu nên `increase()` không thấy bước nhảy từ 0 (test đầu của 23/01 đỏ giả),
+   còn series CŨ của service đã tắt instrumentation/đổi tên vẫn được Collector phơi tới hết `metric_expiration` và
+   Prometheus trả trong 5 phút lookback. Counter nhỏ hơn ảnh chụp trước = service khởi động lại (delta = giá trị sau).
+   So recording rule với truy vấn gốc: lấy mẫu thô của rule bằng range vector (`rule[1m]`), chọn mẫu cũ 15–30 s, chạy
+   truy vấn gốc viết độc lập trong test với `time` = thời điểm mẫu.
+7. **Không có USE của host trên Docker Desktop**: `node_exporter` chỉ thấy máy ảo Linux; lab không dùng nó và không dùng
+   cAdvisor (cần `docker.sock`); CPU/RAM tiến trình lấy từ SDK, so sánh bản trước/overhead dùng `docker stats`.
+8. **Game day đo khách quan**: bản trước chạy một runbook cố định (lệnh + luật phân tích output viết trước, mẫu
+   `bench/game-day.ts`), đếm số bước tới khi khoanh đúng service/tài nguyên; bản sau đo từ lúc bật toxic tới `activeAt`
+   (pending) và lúc thấy `firing` qua `/api/v1/alerts`. Không bấm giờ người thật; thời gian của người chỉ ghi "minh họa".
+   Toxiproxy (công cụ tiêm lỗi) không nằm trong runbook.
+9. **pnpm 10 chuyển nguyên `--` cho script**: `pnpm bench:x -- --flag` làm `node:util` `parseArgs` báo "Unexpected
+   argument"; README ghi `pnpm bench:x --flag`.
+
+**Lý do:** (1)–(9) kiểm trực tiếp ở bài 23/01 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** 23/02 (structured logging) và 23/04 (percentiles) dùng lại compose, gói `packages/observability` (chép
+sang bài) và quy ước (3)–(6); 23/03 (tracing) dùng cùng bộ SDK (thêm `sdk-trace` cùng phiên bản). Image chỉ bài 23/01
+dùng: không có (postgres, toxiproxy, k6, node đã có từ bài trước).
