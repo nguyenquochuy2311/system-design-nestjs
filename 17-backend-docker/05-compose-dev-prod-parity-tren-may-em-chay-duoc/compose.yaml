@@ -1,0 +1,38 @@
+# [PATTERN] Môi trường dịch vụ phụ trợ dưới dạng mã, dùng chung cho dev và CI (Twelve-Factor "Dev/prod parity"):
+# - image ghim đúng phiên bản production (infra/production-versions.json) + digest, không dùng tag trôi như `postgres:16`;
+# - init script tạo role owner/app như production (infra/postgres-init/);
+# - healthcheck để `docker compose up --wait` chỉ trả về khi DB nhận kết nối thật.
+# Dev chạy `docker compose up -d --wait` (Compose tự gộp compose.override.yaml); CI chạy
+# `docker compose -f compose.yaml up -d --wait` (có -f thì Compose KHÔNG đọc file override).
+# Mật khẩu lấy từ .env (chép từ .env.example) hoặc biến môi trường của CI; không có giá trị mặc định.
+name: lab-17-05
+
+services:
+  postgres:
+    image: postgres:16.15@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD - chép .env.example thành .env}
+      POSTGRES_DB: crm
+      APP_OWNER_PASSWORD: ${APP_OWNER_PASSWORD:?Thiếu APP_OWNER_PASSWORD - chép .env.example thành .env}
+      APP_USER_PASSWORD: ${APP_USER_PASSWORD:?Thiếu APP_USER_PASSWORD - chép .env.example thành .env}
+    # Chỉ mở trên loopback, cổng của lab (không 5432) để không nối nhầm vào PostgreSQL cài sẵn trên máy.
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    labels:
+      lab.id: "17-05"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1), nên TCP trả lời
+      # nghĩa là init (role, quyền) đã xong.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d crm"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "17-05"

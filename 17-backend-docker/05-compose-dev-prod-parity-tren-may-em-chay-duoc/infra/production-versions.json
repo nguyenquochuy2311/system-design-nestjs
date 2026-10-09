@@ -1,0 +1,7 @@
+{
+  "_ghiChu": "Production GIẢ LẬP của lab: phiên bản đang chạy ở production, do người vận hành cập nhật sau mỗi lần nâng cấp (thực tế đọc từ `SHOW server_version` của DB production bằng tài khoản chỉ đọc, hoặc từ IaC). scripts/check-version-drift.ts so compose.yaml, .nvmrc, engines và Node đang chạy với file này.",
+  "services": {
+    "postgres": "16.15"
+  },
+  "node": "20.19.6"
+}

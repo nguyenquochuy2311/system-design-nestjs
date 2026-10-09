@@ -9,7 +9,7 @@
  * Không thay "Cách chạy" của README: bài có bước riêng thì vẫn làm theo README.
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { delimiter, dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,8 +21,9 @@ const LAB = resolve(dir);
 const flag = (f) => args.includes(f);
 const pkg = JSON.parse(readFileSync(join(LAB, 'package.json'), 'utf8'));
 const scripts = pkg.scripts ?? {};
-const hasCompose = existsSync(join(LAB, 'docker-compose.yml')) || existsSync(join(LAB, 'compose.yml'));
+const hasCompose = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'].some((f) => existsSync(join(LAB, f)));
 const results = [];
+let envCreated = false; // đặt ở bước 2, finish() dọn lại
 const t0 = Date.now();
 
 // Không dùng login shell (`zsh -l`): ~/.zprofile chạy `brew shellenv` đưa node của Homebrew (khác bản Node 20 của repo) lên
@@ -42,6 +43,7 @@ function step(name, cmd, { allowFail = false, show = 6 } = {}) {
   return r;
 }
 function finish(code) {
+  if (envCreated && !flag('--keep-up')) rmSync(join(LAB, '.env'), { force: true });
   console.log(`\nTổng ${((Date.now() - t0) / 1000).toFixed(0)} s · ${results.filter((r) => r.ok).length}/${results.length} bước đạt`);
   process.exit(code);
 }
@@ -56,6 +58,10 @@ console.log(`Node ${nodeV} · pnpm ${pnpmV}${pkg.engines?.node ? ` · engines.no
 if (!nodeV.startsWith('v20.')) console.log('• Repo dùng Node 20 (CLAUDE.md); chạy script bằng node 20, vd `nvm use 20`.');
 
 // 2. Dọn trạng thái cũ, cài lại từ lockfile, dựng dịch vụ.
+// Bài có `.env.example` mà chưa có `.env` (bản clone sạch): chép như bước đầu của "Cách chạy", xóa lại khi kết thúc
+// (giữ lại nếu --keep-up, vì container còn chạy cần nó).
+envCreated = existsSync(join(LAB, '.env.example')) && !existsSync(join(LAB, '.env'));
+if (envCreated) { copyFileSync(join(LAB, '.env.example'), join(LAB, '.env')); console.log('• Chép .env.example → .env (xóa khi xong, trừ --keep-up)'); }
 if (hasCompose) step('docker compose down -v', 'docker compose down -v', { allowFail: true, show: 1 });
 rmSync(join(LAB, 'node_modules'), { recursive: true, force: true });
 if (existsSync(join(LAB, '.data'))) rmSync(join(LAB, '.data'), { recursive: true, force: true }); // chỉ xóa SAU down -v

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+bench/results/
+.tmp/
+.data/
+.env

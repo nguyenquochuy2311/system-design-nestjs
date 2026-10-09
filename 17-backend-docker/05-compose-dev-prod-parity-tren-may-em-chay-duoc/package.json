@@ -1,0 +1,46 @@
+{
+  "name": "compose-dev-prod-parity-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 17/05: Docker Compose & Dev/Prod Parity — API NestJS 10 + migration Kysely; PostgreSQL 14 role toàn quyền (trước) so với compose.yaml ghim PostgreSQL 16.15, init script tạo role owner/app như production, script kiểm lệch phiên bản (sau)",
+  "packageManager": "pnpm@10.32.0",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v",
+    "db:psql": "docker compose exec postgres psql -U postgres -d crm",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "dev": "tsx src/main.ts",
+    "check:versions": "tsx scripts/check-version-drift.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:matrix": "tsx bench/migration-matrix.ts",
+    "bench:setup": "tsx bench/setup-timing.ts",
+    "bench:restart": "tsx bench/restart-keeps-data.ts",
+    "bench:negative": "tsx bench/negative-drills.ts",
+    "clean": "tsx scripts/clean.ts"
+  },
+  "engines": {
+    "node": ">=20.19.6 <21"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.22",
+    "@nestjs/core": "10.4.22",
+    "@nestjs/platform-express": "10.4.22",
+    "kysely": "0.29.6",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "10.4.22",
+    "@types/node": "20.19.43",
+    "@types/pg": "8.23.1",
+    "@types/semver": "7.7.1",
+    "semver": "7.8.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "yaml": "2.9.1"
+  }
+}

@@ -1,0 +1,20 @@
+-- Áp quyền "như production" cho database :target_db. Được 01-roles.sql gọi bằng \ir, chạy dưới superuser khởi tạo.
+
+-- [PATTERN] app_owner sở hữu database. Từ PostgreSQL 15, schema public thuộc pg_database_owner, tức owner của database
+-- có toàn quyền trên public (tạo bảng được); role khác thì không, vì PUBLIC không còn quyền CREATE trên public.
+SELECT format('ALTER DATABASE %I OWNER TO app_owner', :'target_db') \gexec
+SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'target_db') \gexec
+SELECT format('GRANT CONNECT ON DATABASE %I TO app_user', :'target_db') \gexec
+
+\connect :"target_db"
+-- Mặc định của PostgreSQL 15+; ghi tường minh theo "secure schema usage pattern" của PostgreSQL docs (Schemas →
+-- Usage Patterns), để quyền không phụ thuộc vào việc ai đó dựng nhầm trên bản cũ.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO app_user;
+
+-- [PATTERN] Bảng/sequence do app_owner tạo về sau (bằng migration) tự cấp quyền DML cho app_user; không cấp CREATE,
+-- TRUNCATE, REFERENCES hay TRIGGER.
+ALTER DEFAULT PRIVILEGES FOR ROLE app_owner IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE app_owner IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO app_user;

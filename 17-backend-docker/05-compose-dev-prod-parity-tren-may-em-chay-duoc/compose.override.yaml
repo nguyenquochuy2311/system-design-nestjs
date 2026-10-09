@@ -1,0 +1,8 @@
+# Chỉ dành cho máy dev: Compose tự gộp file này khi chạy `docker compose up` không có -f; CI chạy
+# `docker compose -f compose.yaml ...` nên không dùng nó. Chỉ thêm tiện ích quan sát, KHÔNG đổi image, phiên bản,
+# role hay quyền (scripts/check-version-drift.ts báo lỗi nếu file này đặt `image`).
+services:
+  postgres:
+    # Ghi log kết nối (thấy role nào nối vào) và câu chậm hơn 250 ms. Không bật log_statement=all/ddl: entrypoint
+    # truyền các cờ -c này cho cả server tạm lúc chạy init script, nên câu CREATE ROLE ... PASSWORD sẽ vào log.
+    command: ["postgres", "-c", "log_connections=on", "-c", "log_min_duration_statement=250"]
