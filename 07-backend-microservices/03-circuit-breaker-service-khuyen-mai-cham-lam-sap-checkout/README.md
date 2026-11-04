@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🟡 Trung bình | 📋 Kế hoạch | Circuit Breaker — Nygard, *Release It!* (2007/2018) | 2026-10-06 |
+| 07 · backend / microservices | 🟡 Trung bình | ✅ Hoàn thành | Circuit Breaker — Nygard, *Release It!* (2007/2018) | 2026-11-04 |
 
 > **Một câu tóm tắt:** Bọc lời gọi sang service khuyến mãi bằng một "cầu dao": khi lỗi hoặc timeout vượt ngưỡng, cầu dao mở và checkout trả lời ngay bằng phương án dự phòng (không giảm giá) thay vì chờ 30 giây và kéo cạn tài nguyên của chính mình.
 
@@ -85,7 +85,7 @@ sequenceDiagram
   PR--xCB: Timeout
   CB-->>CK: Lỗi, dùng fallback
   CK-->>KH: Đơn tạo xong, khuyến mãi tạm không áp dụng
-  Note over CB: 5 lỗi trong 10 giây vượt ngưỡng, cầu dao chuyển sang Open
+  Note over CB: Tỷ lệ lỗi trong 10 giây vượt 50 %, cầu dao chuyển sang Open
   KH->>CK: Khách khác thanh toán
   CK->>CB: Tính giảm giá
   CB-->>CK: Từ chối ngay, không gọi promotion
@@ -131,6 +131,8 @@ stateDiagram-v2
 - **Fallback gọi lại chính phụ thuộc đang hỏng** hoặc gọi một phụ thuộc khác chưa được bảo vệ. Fallback phải rẻ và cục bộ.
 - **Trạng thái cầu dao ở từng instance** của checkout: 10 instance là 10 cầu dao độc lập, mở không cùng lúc. Chấp nhận được, nhưng dashboard phải tổng hợp theo instance.
 - **Không test chế độ Half-Open.** Lỗi hay gặp là cho quá nhiều lời gọi thử đi qua cùng lúc, tạo đợt tải mới lên service vừa hồi phục.
+- **Dùng timeout của thư viện cầu dao mà không hủy lời gọi.** Timeout của `opossum` chỉ làm hàm trả lỗi, kết nối vẫn bị giữ tới khi phía kia trả lời. Lab tắt timeout đó và dùng `AbortSignal` ở lời gọi HTTP, để timeout trả kết nối về pool.
+- **Tin rằng pool nhỏ sẽ che chắn được phụ thuộc.** Bản "trước" chỉ có 50 kết nối nhưng promotion vẫn nhận 1.363,7 lời gọi/phút lúc sự cố: timeout tính cả thời gian xếp hàng, nên request vào tới kết nối thì sắp hết giờ, bị hủy và nhường chỗ cho request sau. Pool chỉ giới hạn số lời gọi cùng lúc, không giới hạn lưu lượng.
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -144,6 +146,14 @@ stateDiagram-v2
 | Hạ tầng local | Docker Compose | Dựng hai service, Toxiproxy, Prometheus | — |
 
 **Thay đổi so với hệ thống hiện tại:** thêm một lớp bọc lời gọi ở checkout, một fallback đã được nghiệp vụ duyệt, ba metric mới và một cảnh báo; đội vận hành phải hiểu ba trạng thái cầu dao và biết đọc dashboard để trả lời "có đang chạy chế độ không khuyến mãi không".
+
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, `opossum` 9.0.0, `undici` 7.30.1, `prom-client` 15.1.3, Toxiproxy 2.12.0, Prometheus 3.14.0, k6 1.4.2. `opossum` 10 và `undici` 8 đòi Node ≥ 22 nên lab trên Node 20 ghim hai bản trên.
+- Bài không có database: mục 1 nhắc cả pool database, còn lab chỉ tái hiện pool HTTP của checkout, theo cấu trúc `docker-compose.yml` ở mục 8.
+- Lời gọi được bọc ở `GuardedPromotionClient`, không dùng interceptor của NestJS: interceptor bọc request đi vào, còn đây là lời gọi đi ra.
+- Một app checkout chạy cả hai bản, `CHECKOUT_MODE` chọn client. Mọi thứ khác giống nhau.
+- Độ trễ đặt ở chiều promotion trả về, nên request vẫn tới promotion và bộ đếm của nó thấy đúng lưu lượng.
+- Không dựng cảnh báo và Grafana: lab kiểm metric tới được Prometheus bằng truy vấn trực tiếp.
 
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
@@ -159,6 +169,53 @@ stateDiagram-v2
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** sự cố ở khuyến mãi chỉ làm mất phần giảm giá trong vài phút thay vì mất toàn bộ doanh thu checkout; đội vận hành thấy ngay dịch vụ nào đang bị ngắt.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04, lượt `main-2`): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp, không có khoảng ngủ. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. Service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2 cùng mạng Compose. Load 1 phút của macOS: 1,9 – 2,9.
+
+**Tải:** mô hình mở 25 request/giây trong 5 phút, không rớt iteration nào. Toxiproxy thêm độ trễ 30 giây từ phút thứ 1 tới phút thứ 4. "Sau khi cầu dao mở" là các request bắt đầu từ giây thứ 15 của sự cố. Giỏ hàng trong lượt tải không có mã khuyến mãi.
+
+| Chỉ số | Trước | Sau | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| p99 checkout khi promotion chậm 30 giây | 30.006,7 ms | 3,0 ms sau khi cầu dao mở; 2.004,2 ms tính cả lúc chưa mở | ≤ 500 ms sau khi cầu dao mở | Đạt |
+| Tỷ lệ checkout thành công trong sự cố | 16,7 % (751/4.500) | 100 % (4.500/4.500), 4.499 đơn ở dạng không giảm giá | ≥ 99 % | Đạt |
+| Thời gian từ khi promotion hỏng tới khi cầu dao mở | không có | 6,7 giây | ≤ 10 giây | Đạt |
+| Số lời gọi tới promotion trong khi cầu dao mở | 1.363,7/phút | 1,8/phút | chỉ lời gọi thử | Đạt |
+| Thời gian hồi phục sau khi promotion khỏe lại | tự hết khi gỡ độ trễ, không cần khởi động lại | 16,9 giây | ≤ 30 giây | Đạt |
+
+**Độ trễ chi tiết** (đơn vị ms):
+
+| Giai đoạn | Bản | Thành công / lỗi | p50 | p95 | p99 | Lớn nhất |
+|---|---|---|---|---|---|---|
+| Trước sự cố (60 giây) | Trước | 1.500 / 0 | 3,6 | 5,2 | 7,9 | 29,4 |
+| Trước sự cố (60 giây) | Sau | 1.500 / 0 | 3,9 | 5,6 | 7,1 | 20,2 |
+| Sự cố (180 giây) | Trước | 751 / 3.749 | 30.002,9 | 30.005,5 | 30.006,7 | 30.016,5 |
+| Sự cố (180 giây) | Sau | 4.500 / 0 | 1,6 | 2,8 | 2.004,2 | 2.015,7 |
+| Sự cố, từ giây thứ 15 | Sau | 4.125 / 0 | 1,6 | 2,3 | 3,0 | 2.006,2 |
+| Sau sự cố (60 giây) | Trước | 1.501 / 0 | 3,5 | 4,7 | 5,9 | 151,1 |
+| Sau sự cố (60 giây) | Sau | 1.500 / 0 | 2,6 | 3,8 | 4,4 | 9,3 |
+
+**Đọc số này thế nào**
+- Ở bản trước, 751 đơn thành công khớp với lượng đơn vào trong 30 giây cuối sự cố (25 × 30 = 750): chúng đang chờ thì độ trễ được gỡ. Suy ra gần như không có đơn nào hoàn tất trước đó, nhưng lab không ghi từng request nên chưa kiểm được trực tiếp.
+- Bản sau chưa mở cầu dao trong 6,7 giây đầu, nên những request đó chờ đủ timeout 2 giây. Cầu dao không mở ngay vì cửa sổ 10 giây còn nhiều lời gọi thành công từ trước sự cố, và lỗi chỉ được đếm sau 2 giây timeout.
+- Giá trị lớn nhất 2.006,2 ms lúc cầu dao đã mở là lời gọi thử ở Half-Open. Cầu dao đổi trạng thái theo đúng chu kỳ: mở 30 giây, thử 2 giây, mở lại, tổng cộng 6 lần thử.
+- Thời gian hồi phục tùy lúc promotion khỏe lại rơi vào đâu trong chu kỳ 30 giây. Trong 16,9 giây đó, 422 đơn vẫn dùng fallback dù promotion đã khỏe: đây là cái giá của thời gian nghỉ.
+- Bản trước không cần khởi động lại, khác số minh họa ở mục 1, vì checkout của lab không giữ tài nguyên nào khác ngoài pool HTTP.
+
+**Test:** 15/15 đạt, không cần Docker. `node scripts/kiem-chung-lab.mjs` đạt 6/6 bước từ đầu. Đã kiểm trực tiếp trên Compose: `circuit_breaker_state`, `circuit_breaker_opened_total` và `promotion_requests_total` tới được Prometheus.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ |
+|---|---|
+| Đếm cả lỗi do request sai vào ngưỡng | 2/3 |
+| Bỏ số lời gọi tối thiểu | 1/6 |
+| Bỏ fallback | 4/6 |
+| Cầu dao không bao giờ thử lại | 3/3 |
+| Bỏ timeout của lời gọi | 2/3 |
+
+**Hạn chế:** mỗi bản một lượt 5 phút và không chạy nhiều vòng, vì chênh lệch lớn hơn nhiễu nhiều bậc. Một instance checkout, nên chưa thấy nhiều cầu dao mở không cùng lúc. Chạy pin, cùng nguồn điện cho cả hai bản. Lượt `main` đầu tiên bị bỏ vì máy gập nắp và ngủ từ 12:14:44 tới 12:26:40; README không dùng số nào từ lượt đó.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -187,30 +244,51 @@ stateDiagram-v2
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng `checkout-service` gọi `promotion-service` qua Toxiproxy; Docker Compose kèm Prometheus; k6 kịch bản 25 request/giây.
-- [ ] Bước 2: đo "trước": bật độ trễ 30 giây ở Toxiproxy ở phút thứ 1, ghi p99 và tỷ lệ thành công checkout trong 5 phút.
-- [ ] Bước 3: bọc lời gọi bằng `opossum` với timeout 2 giây, ngưỡng tỷ lệ lỗi 50 % trên tối thiểu 10 request trong 10 giây, nghỉ 30 giây; thêm fallback và metric.
-- [ ] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5; chụp dashboard trạng thái.
-- [ ] Bước 5: test: (a) sau N lỗi cầu dao mở và lời gọi tiếp theo không chạm promotion; (b) hết thời gian nghỉ chỉ một lời gọi thử đi qua; (c) lỗi 400 không làm mở cầu dao; (d) fallback trả giỏ hàng có cờ `promotionUnavailable`.
+- [x] Bước 1: dựng `checkout-service` gọi `promotion-service` qua Toxiproxy; Docker Compose kèm Prometheus; k6 kịch bản 25 request/giây.
+- [x] Bước 2: đo "trước": bật độ trễ 30 giây ở Toxiproxy ở phút thứ 1, ghi p99 và tỷ lệ thành công checkout trong 5 phút.
+- [x] Bước 3: bọc lời gọi bằng `opossum` với timeout 2 giây, ngưỡng tỷ lệ lỗi 50 % trên tối thiểu 10 request trong 10 giây, nghỉ 30 giây; thêm fallback và metric.
+- [x] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5. *(Không chụp dashboard: lab không dựng Grafana, trạng thái cầu dao đọc từ log và Prometheus.)*
+- [x] Bước 5: test: (a) sau N lỗi cầu dao mở và lời gọi tiếp theo không chạm promotion; (b) hết thời gian nghỉ chỉ một lời gọi thử đi qua; (c) lỗi 400 không làm mở cầu dao; (d) fallback trả giỏ hàng có cờ `promotionUnavailable`.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 src/
   checkout/
-    checkout.service.ts          # luồng thanh toán
-    promotion.client.ts          # [PATTERN] opossum + timeout + fallback
-    metrics.ts                   # gauge trạng thái, counter mở/fallback
-  promotion/                     # service tối giản, có cờ làm chậm để test đơn vị
+    checkout.module.ts            # luồng thanh toán; CHECKOUT_MODE chọn client
+    promotion.client.ts           # bản trước, và timeout bằng AbortSignal dùng chung
+    guarded-promotion.client.ts   # [PATTERN] opossum, ngưỡng, fallback, đổi trạng thái
+    metrics.ts                    # gauge trạng thái, counter mở và fallback
+  promotion/                      # service của đội khác, không sửa
+  shared/                         # log, correlation id, khởi động app
+infra/                            # cấu hình Toxiproxy và Prometheus
 test/
   opens-after-n-failures.test.ts
   half-open-allows-single-probe.test.ts
   client-error-does-not-open-breaker.test.ts
-bench/checkout-with-slow-promotion.k6.js
-docker-compose.yml               # checkout, promotion, toxiproxy, prometheus
+  slow-promotion-exhausts-pool.test.ts
+bench/
+  checkout-with-slow-promotion.k6.js
+  run-slow-promotion.ts           # đo một bản: k6 chạy suốt, bật rồi gỡ độ trễ
+  negative-drills.ts
+docker-compose.yml                # checkout, promotion, toxiproxy, prometheus; k6 ở profile bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(test không cần Docker; lượt đo chỉ cần Docker, k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+pnpm typecheck && pnpm test
+pnpm bench:drills            # phép thử âm
+
+# Đo hai bản, mỗi lệnh khoảng 5 phút và tự dọn sau khi xong; đừng gập nắp máy trong lúc đo
+pnpm bench:slow-promotion --variant truoc --run main
+pnpm bench:slow-promotion --variant sau --run main
 ```
+
+## Bài học sau khi làm
+
+- Cầu dao giữ checkout sống và bảo vệ cả promotion: 4.500/4.500 đơn thành công thay vì 751/4.500, và lời gọi vào promotion giảm từ 1.363,7 xuống 1,8 mỗi phút. Giá phải trả là đơn không được giảm giá trong suốt sự cố, cộng 16,9 giây sau khi promotion đã khỏe.
+- Chi tiết quyết định nhất không nằm ở cầu dao mà ở timeout: timeout phải hủy được lời gọi. Vì vậy lab tắt timeout của `opossum` và dùng `AbortSignal`. Phép thử âm bỏ timeout làm 2/3 test đỏ.
+- Pool 50 kết nối không che chắn được promotion. Timeout tính cả lúc xếp hàng nên kết nối quay vòng ở đúng tốc độ request đi vào.
+- Cầu dao mở sau 6,7 giây chứ không ngay lập tức. Đây là hệ quả của cửa sổ 10 giây và timeout 2 giây; muốn nhanh hơn thì rút ngắn hai số đó, đổi lại dễ mở nhầm.
+- Lượt đo đầu mất vì máy gập nắp khi chạy pin; `caffeinate` không giữ được trong trường hợp này. Không có dòng log nào suốt 12 phút là dấu hiệu nhận ra, và `pmset -g log` xác nhận.
+- `opossum` 10 và `undici` 8 đòi Node ≥ 22: tra `engines` trước khi ghim phiên bản cho lab trên Node 20.

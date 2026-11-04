@@ -478,3 +478,15 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/02 (mục 3.4, 4, 5.1 của bài). Với (2): phép thử âm "gửi ngoài transaction" ban đầu chỉ có 0/3 test đỏ.
 **Ảnh hưởng:** 14/03, 14/04, 07/07 dùng lại (1), (2). Bài có triệu chứng về khóa hoặc tải báo cáo (02/06, 18/xx) theo (3). Mục tiêu độ trễ đặt theo số minh họa tiếp tục theo nhật ký bài 07/01 điểm 4.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/03 (Circuit Breaker)
+
+**Quyết định**
+1. **Thư viện cho lab trên Node 20**: `opossum` 9.0.0 và `undici` 7.30.1. `opossum` 10 đòi Node ≥ 22, `undici` 8 đòi ≥ 22.19.
+2. **Timeout phải hủy được lời gọi.** Đặt `timeout: false` cho `opossum` và dùng `AbortSignal.timeout()` ở lời gọi HTTP, vì timeout của `opossum` không trả kết nối về pool. Các bài 07/04, 07/05, 07/08 theo cách này.
+3. **Bật sự cố theo mốc của tải thật**: script đo lấy mốc từ request đầu tiên tới service, không lấy từ lúc gọi `docker compose run`, vì k6 khởi động chậm hơn vài trăm ms.
+4. **Đo theo giai đoạn của sự cố**: k6 chia Trend và Counter theo lúc request bắt đầu (trước, trong, sau sự cố, và phần sự cố đã ổn định), vì `--summary-export` không tách được theo tag nếu không khai threshold. Mẫu: `bench/checkout-with-slow-promotion.k6.js` của bài 07/03.
+5. **Dấu hiệu lượt đo bị máy ngủ**: lượt chạy quá lâu và log dịch vụ im lặng nhiều phút. Đối chiếu bằng `pmset -g log`. Bổ sung cho nhật ký 04/02 điểm 5: chạy pin mà gập nắp thì `caffeinate` không giữ được máy.
+
+**Lý do:** kiểm trực tiếp ở bài 07/03 (mục 3.5, 4, 5.1 của bài). Với (5): lượt `main` đầu ngủ từ 12:14:44 tới 12:26:40 và đã bị bỏ.
+**Ảnh hưởng:** 07/04, 07/05, 07/08 dùng lại (1)–(4). Bài 07/04 nên đọc lại kết quả về pool: pool nhỏ không giới hạn lưu lượng đổ vào phụ thuộc. Bảng cổng của skill không đổi.

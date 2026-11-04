@@ -1,0 +1,8 @@
+[
+  {
+    "name": "promotion",
+    "listen": "0.0.0.0:18080",
+    "upstream": "promotion:3000",
+    "enabled": true
+  }
+]

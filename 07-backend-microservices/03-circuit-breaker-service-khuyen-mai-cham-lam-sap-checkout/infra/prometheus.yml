@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: checkout
+    static_configs:
+      - targets: ["checkout:3000"]
+  - job_name: promotion
+    static_configs:
+      - targets: ["promotion:3000"]

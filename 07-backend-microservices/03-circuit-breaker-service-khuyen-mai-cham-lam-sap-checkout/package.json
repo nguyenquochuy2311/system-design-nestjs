@@ -1,0 +1,38 @@
+{
+  "name": "circuit-breaker-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 07/03: Circuit Breaker — checkout gọi promotion qua Toxiproxy, không cầu dao (trước) so với opossum + timeout + fallback (sau) trên NestJS 10",
+  "scripts": {
+    "postinstall": "node scripts/build-services.mjs",
+    "build": "node scripts/build-services.mjs",
+    "stack:up": "docker compose up -d --wait",
+    "stack:down": "docker compose down -v",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:slow-promotion": "tsx bench/run-slow-promotion.ts",
+    "bench:drills": "tsx bench/negative-drills.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.22",
+    "@nestjs/core": "10.4.22",
+    "@nestjs/platform-express": "10.4.22",
+    "opossum": "9.0.0",
+    "prom-client": "15.1.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "undici": "7.30.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/opossum": "8.1.9",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

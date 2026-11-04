@@ -1,0 +1,76 @@
+# Lab 07/03: checkout → Toxiproxy → promotion, Prometheus đọc metric của hai service, k6 ở profile `bench`.
+# CHECKOUT_MODE=truoc tắt cầu dao. Service là file JS đã gói bằng esbuild, mount chỉ đọc vào node:20-alpine.
+# Bài không có database: tài nguyên bị cạn là pool HTTP của checkout. Cổng chỉ mở trên 127.0.0.1.
+name: lab-07-03
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-03"
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+services:
+  promotion:
+    <<: *node-service
+    command: ["node", "promotion.cjs"]
+    ports:
+      - "127.0.0.1:3101:3000"
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0@sha256:9378ed52a28bc50edc1350f936f518f31fa95f0d15917d6eb40b8e376d1a214e
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    ports:
+      - "127.0.0.1:58474:8474"
+    volumes:
+      - ./infra/toxiproxy.json:/config/toxiproxy.json:ro
+    labels:
+      lab.id: "07-03"
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  checkout:
+    <<: *node-service
+    command: ["node", "checkout.cjs"]
+    environment:
+      CHECKOUT_MODE: ${CHECKOUT_MODE:-sau}
+      PROMOTION_URL: http://toxiproxy:18080
+      PROMOTION_POOL_SIZE: "50"
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      promotion:
+        condition: service_healthy
+      toxiproxy:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "127.0.0.1:59090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    labels:
+      lab.id: "07-03"
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "07-03"
