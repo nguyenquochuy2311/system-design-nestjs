@@ -42,7 +42,7 @@ flowchart TB
 | 05 | [API Composition — Màn hình chi tiết đơn cần dữ liệu từ 4 service, ghép ở đâu?](./05-api-composition-man-hinh-don-hang-can-du-lieu-4-service/) | 🟡 | microservices.io "API Composition"; Azure "Gateway Aggregation"; CQRS (scope 02) là phương án so sánh | ✅ |
 | 06 | [Service Discovery — Service deploy lại đổi IP, các service khác gọi vào địa chỉ cũ](./06-service-discovery-service-moi-deploy-doi-ip/) | 🟡 | microservices.io "Service registry", "Client-side / Server-side discovery"; Kubernetes docs "Service" (DNS) | 📋 |
 | 07 | [Saga (choreography vs orchestration) — Đặt hàng → trừ kho → thanh toán: bước 3 lỗi thì hoàn kho thế nào khi không còn transaction chung](./07-saga-dat-hang-tru-kho-thanh-toan-hoan-tien-khi-loi/) | 🔴 | Garcia-Molina & Salem, "Sagas" (SIGMOD 1987); microservices.io "Saga"; Richardson, *Microservices Patterns* ch.4; Temporal docs; Azure "Compensating Transaction" | ✅ |
-| 08 | [Bulkhead — Một khách hàng lớn chiếm hết pool kết nối, mọi khách khác bị lỗi theo](./08-bulkhead-mot-tenant-lon-chiem-het-thread-pool/) | 🔴 | Nygard, *Release It!*; Azure "Bulkhead" | 📋 |
+| 08 | [Bulkhead — Một khách hàng lớn chiếm hết pool kết nối, mọi khách khác bị lỗi theo](./08-bulkhead-mot-tenant-lon-chiem-het-thread-pool/) | 🔴 | Nygard, *Release It!*; Azure "Bulkhead" | ✅ |
 
 ## Lộ trình đề xuất trong scope
 

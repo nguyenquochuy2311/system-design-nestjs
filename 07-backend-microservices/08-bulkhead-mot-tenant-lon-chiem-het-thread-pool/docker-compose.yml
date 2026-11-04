@@ -1,0 +1,89 @@
+# Lab 07/08. `docker compose up -d --wait` chỉ dựng PostgreSQL có PGMQ, đủ cho `pnpm test` (service chạy trong tiến trình test).
+# Để đo: profile `stack` (crm-api, Prometheus), `worker` (export-worker, chỉ bản sau), k6 ở profile `bench`, cùng mạng Compose.
+# Tổng kết nối của hai bản bằng nhau: 20. Service là file JS đã gói bằng esbuild. Mật khẩu chỉ dùng cho lab.
+name: lab-07-08
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-08"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: ghcr.io/pgmq/pg16-pgmq:v1.13.0
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lab
+    ports:
+      - "127.0.0.1:55432:5432"
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    labels:
+      lab.id: "07-08"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d lab"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  crm-api:
+    <<: *node-service
+    profiles: ["stack"]
+    command: ["node", "crm-api.cjs"]
+    environment:
+      CRM_MODE: ${CRM_MODE:-sau}
+      DATABASE_URL: postgres://crm_app:crm_app@postgres:5432/lab
+      REPORT_SECONDS: "5"
+    ports:
+      - "127.0.0.1:3100:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  export-worker:
+    <<: *node-service
+    profiles: ["worker"]
+    command: ["node", "export-worker.cjs"]
+    environment:
+      DATABASE_URL: postgres://crm_app:crm_app@postgres:5432/lab
+      REPORT_SECONDS: "5"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    profiles: ["stack"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "127.0.0.1:59090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    labels:
+      lab.id: "07-08"
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "07-08"
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "07-08"

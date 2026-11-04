@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🔴 Nâng cao | 📋 Kế hoạch | Bulkhead — Nygard, *Release It!* (2007/2018); Azure "Bulkhead" | 2026-10-06 |
+| 07 · backend / microservices | 🔴 Nâng cao | ✅ Hoàn thành | Bulkhead — Nygard, *Release It!* (2007/2018); Azure "Bulkhead" | 2026-11-04 |
 
 > **Một câu tóm tắt:** Chia tài nguyên dùng chung (pool kết nối database, số request đồng thời, worker, nhóm instance) thành các khoang riêng theo loại tải và theo tenant, để một khách lớn chạy báo cáo nặng chỉ làm đầy khoang của chính nó — các khách khác vẫn được phục vụ bình thường.
 
@@ -114,6 +114,8 @@ sequenceDiagram
 - **Quên trả chỗ khi lỗi hoặc timeout.** Khoang rò rỉ dần tới đầy; bọc bằng `try/finally` và viết test cho đường lỗi.
 - **Client hủy nhưng truy vấn vẫn chạy.** Kết nối bị giữ dù không ai chờ kết quả; cần `statement_timeout` và hủy truy vấn khi client ngắt.
 - **Chia khoang trước khi đo.** Khoang quá nhỏ gây từ chối oan và lãng phí lúc thấp tải; lấy số từ `pg_stat_activity` và metrics trước khi chốt.
+- **Tin rằng thư viện có hạn chờ trong hàng.** Bulkhead của `cockatiel` chỉ kiểm `signal` lúc lấy việc ra khỏi hàng, nên request hết hạn vẫn nằm đó tới khi có chỗ. Lab tự viết semaphore có hẹn giờ cho từng request.
+- **Test bulkhead mà không có tranh chấp thật.** Bản đầu có 3 test xanh giả, phép thử âm mới lộ ra: chỉ một tenant chạy báo cáo thì giới hạn theo tenant đã che mất việc tách pool; gọi tenant khác sau khi tenant đầu xong thì không có gì để tranh; và "từ chối" sau 50 ms không phân biệt được với "từ chối ngay".
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -129,6 +131,14 @@ sequenceDiagram
 
 **Thay đổi so với hệ thống hiện tại:** `crm-api` có hai pool và lớp giới hạn đồng thời theo tenant; xuất dữ liệu thành tác vụ nền trả file sau; khách lớn có thể nhận 429 nên tài liệu API và hợp đồng phải ghi rõ giới hạn. Đội vận hành theo dõi metrics theo khoang và học cách chỉnh kích thước khoang từ số đo.
 
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, `pg` 8.23.1, `prom-client` 15.1.3, `ghcr.io/pgmq/pg16-pgmq:v1.13.0` (PostgreSQL 16.15, PGMQ 1.13.0), Prometheus 3.14.0, k6 1.4.2.
+- Không dùng `cockatiel`: hàng chờ của nó không hết hạn đúng lúc (mục 3.4). Dùng semaphore tự viết, phương án thay thế đã nêu trong bảng.
+- Hai bản có **cùng tổng 20 kết nối**: bản trước một pool 20, bản sau 14 + 4 + 2. Khác biệt đo được đến từ cách chia, không phải từ việc có thêm tài nguyên.
+- Một instance `crm-api` thay vì 6, nên bộ đếm theo tenant không có vấn đề đếm ở từng instance. Bước thử tăng số instance ở mục 8 không làm.
+- Báo cáo chậm có chủ đích bằng `pg_sleep`, 5 giây thay vì 20 – 40 giây của mục 1, và lượt đo 3 phút thay vì 10 phút, để lượt đo gọn.
+- Tenant đọc từ header `x-tenant-id`, coi như gateway đã xác thực. Chưa làm: nhóm instance cho khách lớn, PgBouncer, hủy truy vấn khi client ngắt.
+
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
 | Chỉ số | Trước (minh họa) | Mục tiêu khi thực hành | Cách đo |
@@ -143,6 +153,61 @@ sequenceDiagram
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** một khách dùng nặng không còn làm 299 khách khác mất khả năng làm việc; khách lớn vẫn có dữ liệu, chỉ chậm hơn và được báo trước bằng giới hạn rõ ràng.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), cắm sạc, mở nắp, không có khoảng ngủ ở cả bốn lượt. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. PostgreSQL 16.15, PGMQ 1.13.0, service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2 cùng mạng Compose. Load 1 phút của macOS: 3,6 – 4,6.
+
+**Tải:** 300 tenant, T-1 chiếm 35 % dữ liệu. 50 khách nhỏ ghi chú tổng cộng 50 request/giây; khách lớn giữ 30 báo cáo liên tục, mỗi báo cáo 5 giây, cộng 12 lần xuất dữ liệu mỗi phút. Mỗi kịch bản 3 phút. Hai lượt mỗi bản, đảo thứ tự. Không rớt iteration nào.
+
+| Chỉ số | Trước (`main`, `round-2`) | Sau (`main`, `round-2`) | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| p99 ghi chú của khách nhỏ khi khách lớn chạy báo cáo | 5.018,3 ms, 5.018,9 ms | 6,1 ms, 8,2 ms | ≤ 500 ms | Đạt |
+| Tỷ lệ lỗi của khách nhỏ | 0 % (0/9.001) | 0 % (0/9.001) | ≤ 0,1 % | Đạt, nhưng bản trước cũng đạt: request chờ chứ không lỗi |
+| Số kết nối PostgreSQL cao nhất | 20, 20 | 6, 12 | ≤ ngưỡng đặt | Đạt, tổng cấu hình là 20 ở cả hai bản |
+| Báo cáo của khách lớn hoàn tất (30 báo cáo, retry theo `Retry-After`) | 30/30, 30/30 | 30/30, 30/30 | 100 % | Đạt |
+| Thời gian chờ chỗ trong khoang tương tác, p99 | không có khoang | 0,0 ms, lớn nhất 0,3 ms | ≤ 20 ms | Đạt |
+
+**Khách nhỏ** (đơn vị ms, kịch bản 30 báo cáo liên tục):
+
+| Lượt | Bản | p50 | p95 | p99 | Lớn nhất |
+|---|---|---|---|---|---|
+| `main` | Trước | 3.351,3 | 4.914,5 | 5.018,3 | 5.135,9 |
+| `main` | Sau | 2,8 | 4,2 | 6,1 | 49,2 |
+| `round-2` | Trước | 3.430,2 | 4.919,5 | 5.018,9 | 5.224,6 |
+| `round-2` | Sau | 2,6 | 4,2 | 8,2 | 504,2 |
+
+**Khách lớn trả giá gì** (3 phút, lượt `main`; lượt `round-2` cho cùng số đếm):
+
+| | Trước | Sau |
+|---|---|---|
+| Báo cáo xong | 695 | 39 |
+| Báo cáo bị từ chối 429 | 0 | 936 |
+| p95 thời gian một báo cáo | 9.988,9 ms | 20.055,0 ms |
+| p95 yêu cầu xuất dữ liệu | 7.182,8 ms | 7,8 ms (trả 202, worker làm sau) |
+
+**Đọc số này thế nào**
+- Mức chênh ở khách nhỏ đến từ cách chia tài nguyên: cùng 20 kết nối, p99 từ 5 giây còn vài mili giây.
+- Bản trước **không có lỗi nào**, khác 40 % minh họa ở mục 5: `pg` xếp hàng không giới hạn, báo cáo chỉ 5 giây và client chờ tới 30 giây, nên request chậm chứ không hỏng. Thời gian chờ khoảng 5 giây chính là độ dài một báo cáo. Báo cáo 20 – 40 giây như mục 1 sẽ chờ lâu hơn, nhưng lab không đo.
+- Khách lớn chịu thiệt thật: số báo cáo xong giảm 695 còn 39, khoảng 18 lần, vì tenant chỉ được chạy 1 báo cáo cùng lúc. Đó là quyết định nghiệp vụ, phải ghi vào hợp đồng. Giới hạn `perTenant` cao hơn sẽ đổi một phần bảo vệ lấy thông lượng; lab chưa đo mức khác.
+- Kết nối cao nhất của bản sau chỉ 6 và 12, nghĩa là phần lớn thời gian bản sau **để trống** tài nguyên trong khi khách lớn bị từ chối. Đây là cái giá của vách ngăn đã nêu ở mục 2.
+- Lượt `round-2` có một ghi chú 504,2 ms, cao hơn hẳn phần còn lại. Nguyên nhân chưa tách riêng được.
+- 30 báo cáo đều xong ở cả hai bản, nhưng bản sau mỗi lần chỉ chạy một báo cáo nên cần ít nhất 150 giây; bản trước xong trong vài lượt của pool. Thời gian chạy của cả kịch bản là 170 giây ở cả hai bản do khách nhỏ chạy suốt, nên không so được tổng thời gian.
+
+**Test:** 15/15 đạt trên PostgreSQL và PGMQ thật. `node scripts/kiem-chung-lab.mjs` đạt 6/6 bước từ volume sạch. Đã kiểm trực tiếp trên Compose: `bulkhead_wait_seconds` tới được Prometheus.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ |
+|---|---|
+| Dùng chung một pool cho hai khoang | 1/5 |
+| Không trả chỗ khi xong | 2/2 |
+| Giới hạn theo khoang, không theo tenant | 1/2 |
+| Hàng chờ không giới hạn | 1/6 |
+| Hàng chờ không có thời gian tối đa | 2/6 |
+| Xuất dữ liệu ngay trong request | 1/5 |
+
+**Hạn chế:** một instance và một máy, báo cáo giả lập bằng `pg_sleep` nên không tốn CPU hay I/O của PostgreSQL, tức lab chỉ đo tranh chấp kết nối. Báo cáo 5 giây, lượt 3 phút, ngắn hơn mục 1 và mục 8.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -170,31 +235,55 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng `crm-api` một pool chung, seed 300 tenant (một tenant chiếm 35 % dữ liệu), endpoint ghi chú và báo cáo pipeline chậm có chủ đích.
-- [ ] Bước 2: đo "trước": k6 hai kịch bản song song trong 10 phút; ghi p99 và tỷ lệ lỗi của khách nhỏ, số kết nối PostgreSQL cao nhất.
-- [ ] Bước 3: thêm bộ phân loại, hai pool, bulkhead theo (khoang, tenant) có hàng chờ, `statement_timeout`, chuyển xuất dữ liệu sang PGMQ worker.
-- [ ] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5; thử tăng số instance để kiểm tổng kết nối.
-- [ ] Bước 5: test: (a) khoang báo cáo đầy không làm chậm request tương tác; (b) tenant vượt giới hạn nhận 429 kèm `Retry-After`, tenant khác không bị; (c) lỗi và timeout luôn trả chỗ trong khoang; (d) tổng kết nối không vượt ngưỡng cấu hình.
+- [x] Bước 1: dựng `crm-api` một pool chung, seed 300 tenant (một tenant chiếm 35 % dữ liệu), endpoint ghi chú và báo cáo pipeline chậm có chủ đích.
+- [x] Bước 2: đo "trước": k6 hai kịch bản song song trong 10 phút; ghi p99 và tỷ lệ lỗi của khách nhỏ, số kết nối PostgreSQL cao nhất.
+- [x] Bước 3: thêm bộ phân loại, hai pool, bulkhead theo (khoang, tenant) có hàng chờ, `statement_timeout`, chuyển xuất dữ liệu sang PGMQ worker.
+- [x] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5. *(Không thử tăng số instance: lab có một instance.)*
+- [x] Bước 5: test: (a) khoang báo cáo đầy không làm chậm request tương tác; (b) tenant vượt giới hạn nhận 429 kèm `Retry-After`, tenant khác không bị; (c) lỗi và timeout luôn trả chỗ trong khoang; (d) tổng kết nối không vượt ngưỡng cấu hình.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 src/
   crm-api/
-    compartment.classifier.ts      # gắn request vào khoang theo route và tenant
-    tenant-bulkhead.ts             # [PATTERN] semaphore theo (khoang, tenant), hàng chờ giới hạn
-    db-pools.ts                    # pool tương tác và pool báo cáo
-    notes.controller.ts, reports.controller.ts
+    tenant-bulkhead.ts             # [PATTERN] semaphore theo (khoang, tenant), hàng chờ có giới hạn và hẹn giờ
+    bulkhead.interceptor.ts        # [PATTERN] xin chỗ, trả 429 kèm Retry-After, trả chỗ ở finalize
+    compartment.classifier.ts      # gắn request vào khoang theo route
+    db-pools.ts                    # [PATTERN] pool tương tác và pool báo cáo, statement_timeout theo khoang
+    crm.module.ts, metrics.ts      # ghi chú, báo cáo, xuất dữ liệu
   export-worker/worker.ts          # PGMQ, concurrency cố định
+  shared/                          # log, correlation id, khởi động app, đọc hàng đợi
 test/
+  tenant-bulkhead.test.ts
   full-report-compartment-does-not-slow-notes.test.ts
   tenant-over-limit-gets-429.test.ts
   slot-released-on-error.test.ts
-bench/noisy-neighbor.k6.js
-docker-compose.yml
+bench/
+  noisy-neighbor.k6.js
+  run-scenario.ts                  # đo một bản, lấy mẫu pg_stat_activity mỗi giây
+  show-results.mjs
+  negative-drills.ts
+docker-compose.yml                 # postgres; profile stack, worker, bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(chỉ cần Docker; k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+docker compose up -d --wait  # chỉ dựng PostgreSQL có PGMQ
+pnpm typecheck && pnpm test
+pnpm bench:drills            # phép thử âm, cần PostgreSQL đang chạy
+docker compose down -v
+
+# Đo hai bản, mỗi lệnh khoảng 6 phút và tự dọn sau khi xong; đừng gập nắp máy trong lúc đo
+pnpm bench:scenario --variant truoc --run main
+pnpm bench:scenario --variant sau --run main
+pnpm bench:show main
 ```
+
+## Bài học sau khi làm
+
+- Cùng 20 kết nối, p99 của khách nhỏ từ 5 giây còn vài mili giây. Không thêm tài nguyên, chỉ chia lại.
+- Bulkhead không miễn phí và phải nói rõ: khách lớn từ 695 báo cáo còn 39 trong 3 phút, và bản sau để trống kết nối trong khi vẫn từ chối họ. Đó là quyết định nghiệp vụ.
+- Giới hạn theo tenant làm phần lớn công việc trong kịch bản một khách lớn. Tách pool chỉ phát huy khi nhiều tenant cùng chạy báo cáo, điều mà phép thử âm đã lộ ra.
+- Phép thử âm bắt được 3 test xanh giả dù bộ test báo 15/15. Với bulkhead, test phải có tranh chấp đồng thời thật.
+- Đọc mã nguồn thư viện trước khi dựa vào nó: bulkhead của `cockatiel` không hết hạn đúng lúc trong hàng chờ.
+- Bản trước không lỗi mà chỉ chậm: `pg` xếp hàng không giới hạn. Chỉ nhìn tỷ lệ lỗi thì sự cố này vô hình.

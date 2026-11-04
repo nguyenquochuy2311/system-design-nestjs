@@ -525,3 +525,15 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/05 (mục 3.4, 4, 5.1 của bài).
 **Ảnh hưởng:** 07/06, 07/08 và bài có màn hình ghép nhiều nguồn dùng lại (1), (3). Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/08 (Bulkhead)
+
+**Quyết định**
+1. **Không dùng bulkhead của `cockatiel` khi cần hạn chờ trong hàng.** Nó chỉ kiểm `signal` lúc lấy việc ra khỏi hàng. Mẫu semaphore có hẹn giờ: `src/crm-api/tenant-bulkhead.ts` của bài 07/08.
+2. **So hai bản với cùng tổng tài nguyên.** Bài về chia tài nguyên giữ tổng bằng nhau (07/08: 20 kết nối), để khác biệt đến từ cách chia.
+3. **Test bulkhead phải có tranh chấp đồng thời thật**: gọi trong lúc khoang đang đầy, không phải sau đó; dùng nhiều tenant khi kiểm tách pool; khẳng định từ chối ngay bằng thời gian, không chỉ bằng loại lỗi. Bản đầu của bài có 3 test xanh giả dù 15/15 đạt.
+4. **Đo cả bên chịu thiệt.** Bài cách ly ghi thông lượng của tenant bị giới hạn và tài nguyên để trống, bên cạnh lợi ích của tenant được bảo vệ. Ở 07/08: báo cáo của khách lớn 695 còn 39, kết nối cao nhất 6 – 12 trên 20.
+5. **Phép thử âm là bước bắt buộc, không phải bước phụ.** Trong scope 07 nó đã lộ test xanh giả ở 07/02 (1) và 07/08 (3).
+
+**Lý do:** kiểm trực tiếp ở bài 07/08 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** bài về rate limiting (13/xx), load shedding (18/05) và multi-tenant (02/07) dùng lại (1)–(4). Bảng cổng của skill không đổi.
