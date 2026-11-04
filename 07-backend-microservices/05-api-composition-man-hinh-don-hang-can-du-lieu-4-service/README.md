@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🟡 Trung bình | 📋 Kế hoạch | API Composition — Richardson, microservices.io / *Microservices Patterns* (2018) | 2026-10-06 |
+| 07 · backend / microservices | 🟡 Trung bình | ✅ Hoàn thành | API Composition — Richardson, microservices.io / *Microservices Patterns* (2018) | 2026-11-04 |
 
 > **Một câu tóm tắt:** Đặt một API Composer gọi song song các service sở hữu dữ liệu (đơn, thanh toán, vận chuyển, khách hàng), mỗi lời gọi có timeout riêng, ghép kết quả trong bộ nhớ và trả phản hồi một phần khi nguồn phụ trợ lỗi — thay vì để app tự gọi bốn lần hoặc quay lại join chéo database.
 
@@ -116,6 +116,8 @@ sequenceDiagram
 - **Không có timeout từng nguồn.** Composer treo theo service chậm nhất và kéo cạn kết nối của chính mình; kết hợp bài 04 và bài 03.
 - **N+1 ở màn hình danh sách.** Composer gọi provider cho từng đơn; phải có endpoint lô và bộ gom lô.
 - **Composer phình thành "service thần".** Khi composer bắt đầu tự suy ra trạng thái đơn từ thanh toán và vận chuyển, nó đã giữ quy tắc nghiệp vụ; trả quy tắc đó về provider sở hữu.
+- **Dùng chung bộ gom lô giữa các request.** DataLoader có cache: tạo một lần cho cả app thì lần gọi sau trả dữ liệu cũ, và có thể trả dữ liệu của khách này cho khách khác. Tạo mới trong mỗi request; phép thử âm dùng chung làm test đỏ.
+- **Timeout che phủ sự cố nhưng không miễn phí.** Shipping hỏng thì mọi màn hình vẫn hiện, nhưng mỗi màn hình chờ đủ 250 ms timeout: p95 từ 93 ms lên 299 ms. Muốn hết khoản này thì cần Circuit Breaker (bài 03).
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -131,6 +133,14 @@ sequenceDiagram
 
 **Thay đổi so với hệ thống hiện tại:** thêm một module composer trong BFF, thêm endpoint lô ở hai provider, chuyển logic ghép khỏi ba client; client phải hiểu trường `partial` để hiển thị trạng thái "đang cập nhật" thay vì lỗi toàn trang; đội vận hành theo dõi thêm histogram độ trễ theo từng nguồn.
 
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, `dataloader` 2.2.3, `pg` 8.23.1, `prom-client` 15.1.3, `postgres:16.15`, Toxiproxy 2.12.0, Prometheus 3.14.0, k6 1.4.2.
+- HTTP dùng `fetch` có sẵn của Node với `AbortSignal.timeout()`, không dùng `undici` trực tiếp.
+- Cả 3 nguồn ở tầng 2 đều là nguồn tùy chọn, kể cả thanh toán. Mục 1 yêu cầu trạng thái thanh toán luôn mới: lab không dùng cache nên đáp ứng được, nhưng màn hình vẫn hiện khi thiếu nó, kèm `partial`.
+- Mỗi provider có **độ trễ xử lý giả định 40 ms**, vì mọi thứ chạy trong một máy (nhật ký 2026-11-04 của bài 07/01 điểm 4). Lượt `delay-0` đo thêm không có độ trễ này.
+- Lab không dựng xác thực: danh tính đọc từ header `x-user-id`, `x-user-role`, coi như gateway đã xác thực. Provider cũng chưa kiểm token dịch vụ như mục 3.3 (xem scope 19).
+- Client cũ được mô phỏng bằng `apps/truoc/legacy-client.ts` cho test và bằng k6 cho lượt đo, có timeout 2 giây.
+
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
 | Chỉ số | Trước (minh họa) | Mục tiêu khi thực hành | Cách đo |
@@ -144,6 +154,54 @@ sequenceDiagram
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** CSKH trả lời khách nhanh hơn vì màn hình hiện đủ trong một lượt; sự cố ở dịch vụ vận chuyển chỉ làm mờ một ô thông tin thay vì khiến khách nghĩ đơn đã mất.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp, không có khoảng ngủ. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. PostgreSQL 16.15, service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2 cùng mạng Compose. Load 1 phút của macOS: 3,1 – 8,7, cao nhất ngay sau lượt chính của bản sau.
+
+**Tải:** seed 10.000 đơn của 500 khách. Mô hình mở 30 màn hình/giây trong 5 phút, sau đó 60 giây shipping chậm 5 giây (Toxiproxy). Đo theo màn hình: bản trước là cả 4 lời gọi tuần tự, bản sau là một request tới BFF. Không rớt iteration nào.
+
+| Chỉ số | Trước | Sau | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| Số round-trip từ app cho màn hình chi tiết | 4 | 1 | 1 | Đạt, k6 đếm 4,00 và 1,00 request mỗi màn hình |
+| p95 màn hình chi tiết, mỗi provider chậm 40 ms | 177 ms | 93 ms | ≤ 400 ms | Đạt, nhưng bản trước cũng đạt |
+| Tỷ lệ màn hình hiển thị được khi shipping lỗi | 0 % (0/1.801) | 100 % (1.800/1.800, tất cả ở dạng một phần) | ≥ 99 % | Đạt |
+| Số request xuống provider cho danh sách 20 đơn | 61 | 4 | ≤ 4 | Đạt, đếm trong `test/list-uses-one-batch-call-per-provider.test.ts` |
+
+**Độ trễ chi tiết** (đơn vị ms, k6 đo mỗi màn hình theo mili giây nguyên):
+
+| Lượt | Bản | p50 | p95 | p99 | Lớn nhất |
+|---|---|---|---|---|---|
+| Lượt chính 5 phút, độ trễ giả định 40 ms | Trước | 171 | 177 | 195 | 570 |
+| Lượt chính 5 phút, độ trễ giả định 40 ms | Sau | 88 | 93 | 100 | 402 |
+| Vòng 60 giây, chạy bản sau trước | Trước | 169 | 175 | 178 | 278 |
+| Vòng 60 giây, chạy bản sau trước | Sau | 87 | 92 | 94 | 204 |
+| Không có độ trễ giả định, 60 giây | Trước | 12 | 17 | 25 | 129 |
+| Không có độ trễ giả định, 60 giây | Sau | 8 | 12 | 15 | 119 |
+| Shipping chậm 5 giây, 60 giây | Trước | 2.129 | 2.135 | 2.162 | 2.248 |
+| Shipping chậm 5 giây, 60 giây | Sau | 296 | 299 | 302 | 342 |
+
+**Đọc số này thế nào**
+- Độ trễ đúng công thức của mục 2: bản trước là tổng 4 lời gọi (khoảng 4 × 43 ms), bản sau là đơn cộng nguồn chậm nhất tầng 2 (khoảng 2 × 44 ms). Tỉ lệ 177/93 **phụ thuộc giả định 40 ms**: không có độ trễ này thì chỉ còn 17 ms so với 12 ms.
+- Số 900 ms ở mục 5 là minh họa, lab không có căn cứ để so. Mục tiêu 400 ms bản trước cũng đạt, nên chỉ số này không phân biệt hai bản ở lab. Chi phí mạng di động của 4 round-trip cũng chưa tính, vì k6 chạy cùng mạng Compose.
+- Lợi ích chắc chắn của bài là phần đếm được: 4 round-trip còn 1, 61 request còn 4, và 0 % màn hình hiển thị được thành 100 % khi shipping hỏng.
+- Khi shipping hỏng, mỗi màn hình bản sau tốn đủ timeout 250 ms cộng lời gọi đơn, nên p95 là 299 ms. Bản trước tốn đủ timeout 2 giây của client rồi vẫn lỗi.
+- Lượt chính của bản sau có 1/9.001 màn hình ở dạng một phần lúc không có sự cố: một nguồn vượt timeout 250 ms, cùng lúc giá trị lớn nhất là 402 ms. Nguyên nhân chưa tách riêng được; load máy lúc đó ở mức cao.
+
+**Test:** 18/18 đạt trên PostgreSQL thật. `node scripts/kiem-chung-lab.mjs` đạt 6/6 bước từ volume sạch. Đã kiểm trực tiếp trên Compose: `bff_source_duration_seconds` theo từng nguồn tới được Prometheus.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ |
+|---|---|
+| Dùng `Promise.all` thay cho `allSettled` | 4/5 |
+| Bỏ timeout từng nguồn | 1/5 |
+| Await lần lượt trong composer | 1/2 |
+| Bỏ gom lô | 2/5 |
+| Dùng chung cache của bộ gom lô giữa các request | 2/5 |
+| Bỏ kiểm quyền xem đơn | 1/6 |
+
+**Hạn chế:** độ trễ provider là giả định, không phải số đo từ provider thật. Mỗi service một instance, cùng một máy. Hai lượt 5 phút (mỗi bản một lượt) và hai vòng 60 giây. Chạy pin, cùng nguồn điện ở mọi lượt.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -171,30 +229,59 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng 4 provider tối giản (mỗi service một schema, seed 10.000 đơn) và client giả lập gọi tuần tự 4 API; Toxiproxy đặt trước `shipping-service`.
-- [ ] Bước 2: đo "trước": k6 30 request/giây cho luồng gọi tuần tự, ghi p95, số request cho danh sách 20 đơn, tỷ lệ thành công khi shipping timeout.
-- [ ] Bước 3: viết composer trong BFF: tầng 1 lấy đơn, kiểm quyền, tầng 2 `Promise.allSettled` có timeout từng nguồn; thêm endpoint lô ở payment, shipping và `dataloader` cho danh sách.
-- [ ] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5.
-- [ ] Bước 5: test: (a) shipping timeout vẫn trả 200 kèm `partial`; (b) order lỗi trả lỗi toàn phần; (c) danh sách 20 đơn chỉ tạo đúng 1 lời gọi lô mỗi provider; (d) khách A không xem được đơn của khách B qua composer.
+- [x] Bước 1: dựng 4 provider tối giản (mỗi service một schema, seed 10.000 đơn) và client giả lập gọi tuần tự 4 API; Toxiproxy đặt trước `shipping-service`.
+- [x] Bước 2: đo "trước": k6 30 request/giây cho luồng gọi tuần tự, ghi p95, số request cho danh sách 20 đơn, tỷ lệ thành công khi shipping timeout.
+- [x] Bước 3: viết composer trong BFF: tầng 1 lấy đơn, kiểm quyền, tầng 2 `Promise.allSettled` có timeout từng nguồn; thêm endpoint lô ở payment, shipping và `dataloader` cho danh sách.
+- [x] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5.
+- [x] Bước 5: test: (a) shipping timeout vẫn trả 200 kèm `partial`; (b) order lỗi trả lỗi toàn phần; (c) danh sách 20 đơn chỉ tạo đúng 1 lời gọi lô mỗi provider; (d) khách A không xem được đơn của khách B qua composer.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
-src/
+apps/
   bff/
-    order-detail.composer.ts     # [PATTERN] đồ thị phụ thuộc, allSettled, partial
-    provider-clients.ts          # undici + timeout từng nguồn
-    batch-loaders.ts             # dataloader cho màn hình danh sách
-  providers/                     # order, payment, shipping, customer tối giản
+    order-detail.composer.ts     # [PATTERN] đồ thị phụ thuộc, allSettled, partial, kiểm quyền
+    source-client.ts             # [PATTERN] bảng phân loại nguồn, timeout từng nguồn
+    batch-loaders.ts             # [PATTERN] dataloader, tạo mới cho mỗi request
+    bff.module.ts, metrics.ts
+  providers/                     # order, payment, shipping, customer tối giản, có endpoint lô
+  truoc/legacy-client.ts         # client cũ: gọi tuần tự, một lỗi là lỗi toàn trang
+db/init/                         # 4 schema, 4 role, seed 10.000 đơn
+infra/                           # cấu hình Toxiproxy và Prometheus
 test/
   shipping-timeout-returns-partial.test.ts
   order-failure-fails-whole-response.test.ts
+  parallel-calls-cut-latency.test.ts
   list-uses-one-batch-call-per-provider.test.ts
-bench/order-detail.k6.js
-docker-compose.yml               # postgres, toxiproxy, bff, 4 provider
+bench/
+  order-detail.k6.js
+  run-scenario.ts                # đo một bản: bình thường, rồi shipping chậm
+  show-results.mjs
+  negative-drills.ts
+docker-compose.yml               # postgres; profile stack (4 provider, BFF, toxiproxy, prometheus), bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(chỉ cần Docker; k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+docker compose up -d --wait  # chỉ dựng PostgreSQL
+pnpm typecheck && pnpm test
+pnpm bench:drills            # phép thử âm, cần PostgreSQL đang chạy
+docker compose down -v
+
+# Đo hai bản, mỗi lệnh khoảng 6 phút và tự dọn sau khi xong; đừng gập nắp máy trong lúc đo
+pnpm bench:scenario --variant truoc --run main
+pnpm bench:scenario --variant sau --run main
+pnpm bench:show main
+
+# Đối chứng không có độ trễ giả định
+pnpm bench:scenario --variant sau --run delay-0 --delay 0 --duration 60 --outage-seconds 0
 ```
+
+## Bài học sau khi làm
+
+- Lợi ích lớn nhất của composition không phải độ trễ mà là khả năng chịu lỗi: shipping hỏng thì 0 % màn hình hiển thị được thành 100 %, chỉ thiếu một ô thông tin.
+- Phần độ trễ phụ thuộc giả định: 177 ms so với 93 ms với provider chậm 40 ms, nhưng chỉ 17 ms so với 12 ms khi không có. Đo cả hai để không quy công quá mức cho pattern.
+- `Promise.allSettled` và timeout từng nguồn là cặp không tách được: thiếu một trong hai thì một nguồn tùy chọn vẫn kéo cả màn hình theo.
+- Bộ gom lô phải tạo mới cho mỗi request. Đây là lỗi nguy hiểm vì chạy rất nhanh và mọi test thông thường vẫn xanh; chỉ test gọi hai lần liên tiếp mới bắt được.
+- Timeout không miễn phí: shipping hỏng thì mỗi màn hình tốn thêm khoảng 200 ms. Bài 03 là bước tiếp theo nếu muốn bỏ khoản này.
+- Hạn chế: lab chưa kiểm token dịch vụ ở provider, và chi phí 4G của 4 round-trip chưa đo.

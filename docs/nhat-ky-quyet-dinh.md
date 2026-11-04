@@ -515,3 +515,13 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/07 (mục 3.3, 3.5, 4, 5.1 của bài).
 **Ảnh hưởng:** 14/03, 14/04, 14/07 dùng lại (1), (3), (4). Bài 07/07 chỉ code orchestration và chung một PostgreSQL, ghi ở mục 4 và 5.1; khi làm 14/03 có thể quay lại phần tách máy chủ. Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/05 (API Composition)
+
+**Quyết định**
+1. **Độ trễ provider là giả định có nhãn, và luôn kèm lượt đối chứng độ trễ 0.** Bài về gọi song song hay số lời gọi mạng trên một máy đặt `PROVIDER_DELAY_MS` (bài 07/05: 40 ms) rồi đo thêm lượt `delay-0`. Ở 07/05: 177 ms so với 93 ms khi có giả định, 17 ms so với 12 ms khi không. Bổ sung cho nhật ký bài 07/01 điểm 4.
+2. **DataLoader tạo mới cho mỗi request.** Có test gọi hai lần liên tiếp và phép thử âm dùng chung cache: lỗi này không lộ ở test gọi một lần.
+3. **Đo theo đơn vị người dùng thấy.** k6 đo cả "màn hình" bằng `Trend` riêng và đếm `http_reqs / iterations` để ra số round-trip, thay vì đọc `http_req_duration` của từng lời gọi.
+
+**Lý do:** kiểm trực tiếp ở bài 07/05 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** 07/06, 07/08 và bài có màn hình ghép nhiều nguồn dùng lại (1), (3). Bảng cổng của skill không đổi.

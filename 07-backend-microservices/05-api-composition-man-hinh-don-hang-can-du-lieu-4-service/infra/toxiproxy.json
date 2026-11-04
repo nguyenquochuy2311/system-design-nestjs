@@ -1,0 +1,8 @@
+[
+  {
+    "name": "shipping",
+    "listen": "0.0.0.0:18080",
+    "upstream": "shipping-service:3000",
+    "enabled": true
+  }
+]

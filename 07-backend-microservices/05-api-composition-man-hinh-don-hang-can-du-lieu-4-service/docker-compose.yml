@@ -1,0 +1,141 @@
+# Lab 07/05. `docker compose up -d --wait` chỉ dựng PostgreSQL, đủ cho `pnpm test` (service chạy trong tiến trình test).
+# Để đo: profile `stack` (4 provider, BFF, Toxiproxy trước shipping, Prometheus), k6 ở profile `bench`, cùng mạng Compose.
+# Service là file JS đã gói bằng esbuild. PROVIDER_DELAY_MS là độ trễ giả định, xem README. Mật khẩu chỉ dùng cho lab.
+name: lab-07-05
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  profiles: ["stack"]
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-05"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+x-provider: &provider
+  <<: *node-service
+  command: ["node", "providers.cjs"]
+
+services:
+  postgres:
+    image: postgres:16.15@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lab
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    labels:
+      lab.id: "07-05"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d lab"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  order-service:
+    <<: *provider
+    environment:
+      SERVICE_NAME: order-service
+      DATABASE_URL: postgres://order_rw:order_rw@postgres:5432/lab
+      PROVIDER_DELAY_MS: ${PROVIDER_DELAY_MS:-40}
+
+  payment-service:
+    <<: *provider
+    environment:
+      SERVICE_NAME: payment-service
+      DATABASE_URL: postgres://payment_rw:payment_rw@postgres:5432/lab
+      PROVIDER_DELAY_MS: ${PROVIDER_DELAY_MS:-40}
+
+  shipping-service:
+    <<: *provider
+    environment:
+      SERVICE_NAME: shipping-service
+      DATABASE_URL: postgres://shipping_rw:shipping_rw@postgres:5432/lab
+      PROVIDER_DELAY_MS: ${PROVIDER_DELAY_MS:-40}
+
+  customer-service:
+    <<: *provider
+    environment:
+      SERVICE_NAME: customer-service
+      DATABASE_URL: postgres://customer_rw:customer_rw@postgres:5432/lab
+      PROVIDER_DELAY_MS: ${PROVIDER_DELAY_MS:-40}
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0@sha256:9378ed52a28bc50edc1350f936f518f31fa95f0d15917d6eb40b8e376d1a214e
+    profiles: ["stack"]
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    ports:
+      - "127.0.0.1:58474:8474"
+    volumes:
+      - ./infra/toxiproxy.json:/config/toxiproxy.json:ro
+    labels:
+      lab.id: "07-05"
+    depends_on:
+      shipping-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  bff:
+    <<: *node-service
+    command: ["node", "bff.cjs"]
+    environment:
+      ORDER_URL: http://order-service:3000
+      PAYMENT_URL: http://payment-service:3000
+      SHIPPING_URL: http://toxiproxy:18080
+      CUSTOMER_URL: http://customer-service:3000
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      toxiproxy:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    profiles: ["stack"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "127.0.0.1:59090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    labels:
+      lab.id: "07-05"
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "07-05"
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "07-05"
