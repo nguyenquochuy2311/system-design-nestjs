@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🔴 Nâng cao | 📋 Kế hoạch | Saga — Garcia-Molina & Salem, SIGMOD 1987; Richardson, *Microservices Patterns* (2018) | 2026-10-06 |
+| 07 · backend / microservices | 🔴 Nâng cao | ✅ Hoàn thành | Saga — Garcia-Molina & Salem, SIGMOD 1987; Richardson, *Microservices Patterns* (2018) | 2026-11-04 |
 
 > **Một câu tóm tắt:** Chia quy trình đặt hàng thành chuỗi transaction cục bộ ở từng service, mỗi bước có bước bù; một orchestrator lưu trạng thái saga trong database, gửi lệnh qua hàng đợi cùng transaction với việc đổi trạng thái, và khi thanh toán thất bại thì chạy bù theo thứ tự ngược — thay cho transaction phân tán không còn khả thi.
 
@@ -99,14 +99,18 @@ stateDiagram-v2
   state "Chờ giữ hàng" as RESERVING
   state "Chờ thanh toán" as CHARGING
   state "Đã xác nhận" as CONFIRMED
+  state "Đang chốt với cổng, hoàn tiền nếu đã trừ" as VOIDING
   state "Đang bù, nhả hàng" as COMPENSATING
   state "Đã hủy" as CANCELLED
   [*] --> RESERVING
   RESERVING --> CHARGING : StockReserved
   RESERVING --> CANCELLED : OutOfStock
+  RESERVING --> COMPENSATING : quá 15 phút
   CHARGING --> CHARGING : timeout, tra cứu lại
   CHARGING --> CONFIRMED : PaymentSucceeded
-  CHARGING --> COMPENSATING : PaymentFailed hoặc quá 15 phút
+  CHARGING --> COMPENSATING : PaymentFailed
+  CHARGING --> VOIDING : quá 15 phút
+  VOIDING --> COMPENSATING : PaymentVoided
   COMPENSATING --> CANCELLED : StockReleased
 ```
 
@@ -117,13 +121,18 @@ stateDiagram-v2
 | Orchestrator + bảng `order_sagas` | Máy trạng thái: nhận trả lời, quyết định lệnh tiếp theo hoặc lệnh bù; một câu SQL trả lời "đơn X đang ở đâu" | Cột `version` chặn hai trả lời trùng cùng đẩy trạng thái; lưu lịch sử chuyển trạng thái kèm lý do |
 | Gửi lệnh | Đổi trạng thái và gửi lệnh trong cùng một transaction | Lab dùng chung một PostgreSQL nên `pgmq.send` trong transaction là đủ; database tách máy thì cần outbox + relay (14/03) |
 | Participant handler | Thực thi bước hoặc bước bù, trả lời kết quả | Idempotent theo `sagaId` + loại lệnh (14/04); payment chỉ trả `PaymentFailed` khi cổng xác nhận từ chối |
-| Hạn 15 phút | Message trễ kích hoạt bù nếu saga còn ở `CHARGING` | Kiểm trạng thái khi tới hạn, không hủy mù (14/07) |
+| Hạn 15 phút | Message trễ gửi cùng lúc tạo đơn, áp dụng cho mọi trạng thái chưa kết thúc | Đang ở `CHARGING` thì không nhả hàng ngay, mà sang `VOIDING` để chốt với cổng trước (14/07) |
+| Hủy ở cổng (`VoidPayment`) | Bước bù của thanh toán: đã trừ thì hoàn tiền, chưa trừ thì khóa key | Idempotent; khóa key để lệnh trừ tiền tới muộn không trừ được nữa |
 
 ### 3.5 Điểm dễ sai khi triển khai
 - **Coi timeout là thất bại rồi bù.** Đây là nguồn gốc "trừ tiền mà đơn hủy". Timeout phải dẫn tới tra cứu hoặc retry cùng idempotency key.
 - **Bước bù không idempotent.** `ReleaseStock` tới hai lần nhả gấp đôi; bù theo `reservationId`, ghi nhận lệnh đã xử lý.
 - **Bước bù được phép thất bại.** Về nghiệp vụ, bù phải hoàn tất: retry có backoff; lỗi vĩnh viễn vào DLQ kèm cảnh báo người xử lý (14/05).
 - **Đặt pivot quá sớm.** Trừ tiền trước khi giữ hàng biến lỗi "hết hàng" thành hoàn tiền; đặt bước khó bù càng muộn càng tốt. Bù cũng không phải rollback: email "đặt hàng thành công" chỉ gửi khi saga ở `CONFIRMED`.
+- **Hết hạn thì bù ngay.** Thiết kế đầu của bài chuyển thẳng `CHARGING` sang `COMPENSATING` khi quá 15 phút: nếu cổng đã trừ mà chưa kịp trả lời thì nhả hàng và hủy đơn, đúng lỗi bài muốn xóa. Phải chốt với cổng trước.
+- **Không có hạn chót ở bước đầu.** Kho không trả lời thì saga kẹt ở `RESERVING` mãi. Hạn chót phải áp dụng cho mọi trạng thái chưa kết thúc.
+- **Bù chạy song song với bước nó bù.** Lệnh bù tới cùng lúc lệnh giữ hàng: `UPDATE` không thấy dòng chưa commit nên bỏ sót, hàng bị giữ vĩnh viễn trong khi đã báo là nhả xong. Chèn tombstone trước, vì câu đó chờ transaction kia commit, rồi mới `UPDATE`.
+- **Gửi lệnh ngoài transaction.** Phép thử âm cho thấy không chỉ có lệnh mồ côi: kho có thể trả lời trước khi đơn commit, orchestrator không thấy saga nên bỏ qua trả lời đó, và saga kẹt.
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -136,6 +145,14 @@ stateDiagram-v2
 | Test, đo, hạ tầng | Cổng thanh toán giả (Fastify: idempotency key, tra cứu, chế độ timeout và từ chối); Vitest test tích hợp bắn lỗi có chủ ý, k6, script đối soát 3 database; Docker Compose | Tái hiện "chưa biết kết quả" có kiểm soát; chứng minh không còn đơn lệch | WireMock cho cổng giả |
 
 **Thay đổi so với hệ thống hiện tại:** `POST /orders` trả `202` và trạng thái `PENDING` thay vì chờ cả quy trình; thêm orchestrator, ba hàng đợi, handler idempotent ở kho và thanh toán; giao diện hiển thị "đang xử lý". Đội vận hành thay script sửa tay bằng truy vấn `order_sagas` và theo dõi số saga kẹt quá 15 phút.
+
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, `pg` 8.23.1, Fastify 5.12.5 cho cổng giả, `ghcr.io/pgmq/pg16-pgmq:v1.13.0` (PostgreSQL 16.15, PGMQ 1.13.0), k6 1.4.2.
+- Ba service dùng ba schema và ba role trên **một** PostgreSQL. Vì vậy mọi `pgmq.send` đều nằm cùng transaction với việc của service đó. Ba database riêng thì mỗi service cần Transactional Outbox (14/03); phần khó đó lab chưa làm. "Đối soát ba nơi" là đơn, kho và sổ cái của cổng.
+- Bài chỉ code orchestration. Choreography chỉ được so sánh ở mục 2, dù tên bài có nhắc tới. Bước Temporal tùy chọn không làm.
+- Máy trạng thái là hàm thuần trong `saga-machine.ts`, nên test được mọi tổ hợp trạng thái và sự kiện.
+- Kết quả của cổng giả tính từ key, nên hai bản nhận cùng tỉ lệ từ chối và timeout. Trong số lần timeout, một nửa thực ra đã trừ tiền.
+- Thời gian chờ cổng là 1 giây thay vì 10 giây của sơ đồ, để lượt đo gọn.
 
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
@@ -150,6 +167,57 @@ stateDiagram-v2
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** không còn khách bị trừ tiền cho đơn đã hủy; hàng bị giữ oan được nhả trong vài giây nên không mất doanh thu "hết hàng ảo"; đội vận hành bỏ được việc sửa dữ liệu mỗi sáng.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp, không có khoảng ngủ ở cả bốn lượt. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. PostgreSQL 16.15, PGMQ 1.13.0, service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2 cùng mạng Compose. Load 1 phút của macOS: 2,7 – 3,9.
+
+**Tải:** 30 đơn/giây trong 334 giây, khoảng 10.000 đơn mỗi lượt, cổng từ chối 5 % và timeout 2 %. Mỗi lượt `docker kill` tiến trình đặt hàng 3 lần rồi dựng lại sau 3 giây. Hai lượt mỗi bản, mốc kill khác nhau. Không rớt iteration nào.
+
+| Chỉ số | Trước (`main`, `round-2`) | Sau (`main`, `round-2`) | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| Đơn lệch giữa ba nơi | 108/9.958, 108/9.937 | 0/9.953, 0/9.952 | 0 | Đạt |
+| Saga tới trạng thái cuối sau khi kill orchestrator | 4 đơn treo mỗi lượt | 100 % ở cả hai lượt | 100 % | Đạt |
+| Từ `PaymentFailed` tới khi hàng được nhả, p95 | không có cơ chế | 111,7 ms, 109,4 ms (lớn nhất 3.668,6 ms) | ≤ 5 giây | Đạt |
+| p95 `POST /orders` | 36,2 ms, 39,7 ms | 5,3 ms, 5,4 ms | ≤ 200 ms | Đạt, nhưng bản trước cũng đạt |
+
+**Chi tiết kết cục** (lượt `main`, lượt `round-2` trong ngoặc):
+
+| | Trước | Sau |
+|---|---|---|
+| Đơn xác nhận | 9.248 (9.262) | 9.452 (9.440) |
+| Đơn hủy | 706 (671) | 501 (512) |
+| Đơn chưa kết thúc | 4 (4) | 0 (0) |
+| Đơn hủy mà khách vẫn bị trừ tiền | 104 (104) | 0 (0) |
+| Đơn treo đang giữ hàng | 4 (4) | 0 (0) |
+| Đơn hủy mà kho còn giữ | 0 (0) | 0 (0) |
+| Request không vào được lúc tiến trình bị kill | 66 (88) | 68 (69) |
+| p99 `POST /orders` | 1.008,3 ms (1.008,7 ms) | 14,3 ms (12,9 ms) |
+| Thời gian chờ saga cuối cùng kết thúc sau lượt tải | không áp dụng | 1.135 ms (1.689 ms) |
+
+**Đọc số này thế nào**
+- Bản sau chỉ hủy đúng phần cổng từ chối: khoảng 5 % đơn. Bản trước hủy khoảng 7 %, vì mọi lần timeout đều bị coi là thất bại. Trong đó khoảng một nửa khách đã bị trừ tiền (104 đơn), nửa còn lại là đơn lẽ ra bán được.
+- Đơn treo của bản trước là các đơn đang chạy đúng lúc tiến trình bị kill. Bản sau gặp cùng 3 lần kill mà không có đơn nào treo, vì trạng thái nằm trong database chứ không nằm trong bộ nhớ của request.
+- Cả hai bản đều mất khoảng 70 – 90 request lúc tiến trình bị kill, vì saga không làm API tự sống lại. Đây là số request nhận lỗi kết nối, không phải đơn lệch.
+- Mục tiêu p95 `POST /orders` không phân biệt được hai bản, vì cổng giả chỉ trễ 20 ms. Ở p99 thì khác rõ: bản trước phải chờ hết 1 giây timeout, bản sau không chờ cổng.
+- Giá trị lớn nhất 3.668,6 ms của bước nhả hàng là lúc lệnh rơi vào đúng khoảng consumer bị gián đoạn; p95 mới là con số đại diện. Nguyên nhân cụ thể chưa tách riêng được.
+- Lượt đo không chạm tới hạn chót 15 phút, nên `VOIDING` và hoàn tiền chỉ được kiểm bằng test: số đơn hoàn tiền trong lượt đo là 0.
+
+**Test:** 31/31 đạt trên PostgreSQL và PGMQ thật. `node scripts/kiem-chung-lab.mjs` đạt từ volume sạch.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ |
+|---|---|
+| Coi timeout là thất bại, không tra cứu cổng | 3/3 |
+| Bước bù không idempotent | 1/5 |
+| Bỏ tombstone của bước bù | 2/5 |
+| Hết hạn thì nhả hàng ngay dù chưa chốt với cổng | 3/5 |
+| Không có hạn chót khi còn giữ hàng | 1/5 |
+| Gửi lệnh đầu tiên ngoài transaction tạo đơn | 3/3 |
+| Hủy không hoàn tiền | 1/5 |
+
+**Hạn chế:** ba schema chung một PostgreSQL nên bài chưa đụng vấn đề gửi message khi tách máy chủ. Mỗi dịch vụ một instance. Hai lượt mỗi bản. Chạy pin, cùng nguồn điện ở cả bốn lượt. Tồn kho rất lớn nên không có đơn hết hàng trong lượt đo; trường hợp này chỉ kiểm bằng test.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -176,29 +244,63 @@ stateDiagram-v2
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng 3 service tối giản và cổng thanh toán giả; phiên bản "trước" gọi HTTP tuần tự với try/catch hoàn kho.
-- [ ] Bước 2: đo "trước": 10.000 đơn với 5 % từ chối, 2 % timeout, kill `order-service` ngẫu nhiên 3 lần; chạy script đối soát, ghi số đơn lệch.
-- [ ] Bước 3: viết orchestrator, bảng `order_sagas`, ba hàng đợi PGMQ, handler idempotent, tra cứu khi timeout, hạn 15 phút bằng message trễ.
-- [ ] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5; (tùy chọn) viết lại saga bằng Temporal và so số dòng code, cách quan sát.
-- [ ] Bước 5: test: (a) thanh toán bị từ chối thì hàng được nhả và đơn hủy; (b) timeout dẫn tới tra cứu, không bù khi cổng báo thành công; (c) kill orchestrator giữa chừng, saga vẫn kết thúc đúng; (d) `ReleaseStock` hai lần chỉ nhả một lần.
+- [x] Bước 1: dựng 3 service tối giản và cổng thanh toán giả; phiên bản "trước" gọi HTTP tuần tự với try/catch hoàn kho.
+- [x] Bước 2: đo "trước": 10.000 đơn với 5 % từ chối, 2 % timeout, kill `order-service` ngẫu nhiên 3 lần; chạy script đối soát, ghi số đơn lệch.
+- [x] Bước 3: viết orchestrator, bảng `order_sagas`, ba hàng đợi PGMQ, handler idempotent, tra cứu khi timeout, hạn 15 phút bằng message trễ.
+- [x] Bước 4: đo "sau" cùng kịch bản, ghi số thật và môi trường vào mục 5. *(Phần tùy chọn Temporal không làm.)*
+- [x] Bước 5: test: (a) thanh toán bị từ chối thì hàng được nhả và đơn hủy; (b) timeout dẫn tới tra cứu, không bù khi cổng báo thành công; (c) kill orchestrator giữa chừng, saga vẫn kết thúc đúng; (d) `ReleaseStock` hai lần chỉ nhả một lần.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
-src/
-  order/order-saga.orchestrator.ts   # [PATTERN] máy trạng thái, gửi lệnh cùng transaction
-  inventory/inventory.handlers.ts    # ReserveStock, ReleaseStock idempotent
-  payment/payment.handlers.ts        # Charge, tra cứu khi timeout; kèm cổng giả
-  temporal/order.workflow.ts         # (tùy chọn) cùng saga bằng Temporal
+apps/
+  truoc/truoc.module.ts              # HTTP tuần tự, try/catch hoàn kho, coi timeout là thất bại
+  order-service/
+    saga-machine.ts                  # [PATTERN] toàn bộ quy tắc saga, hàm thuần
+    order-service.module.ts          # [PATTERN] orchestrator: đổi trạng thái và gửi lệnh cùng transaction
+  inventory-service/                 # [PATTERN] ReserveStock, ReleaseStock idempotent, tombstone
+  payment-service/
+    gateway.client.ts                # [PATTERN] timeout thì tra cứu, chỉ từ chối khi cổng xác nhận
+    payment-service.module.ts        # Charge, Void; key là mã saga
+  fake-gateway/                      # idempotency key, tra cứu, hủy, chế độ timeout và từ chối
+libs/
+  platform/queue.ts                  # đọc PGMQ; handler tự archive trong transaction của nó
+  reconcile.ts                       # đối soát đơn, kho và sổ cái của cổng
+db/init/                             # role, hàng đợi, schema, seed
 test/
+  saga-machine.test.ts
   payment-failure-releases-stock.test.ts
   payment-timeout-queries-before-compensating.test.ts
   orchestrator-crash-resumes-saga.test.ts
-scripts/reconcile-three-databases.ts
-docker-compose.yml
+  compensation-is-idempotent.test.ts
+  deadline-settles-before-releasing.test.ts
+bench/
+  place-orders.k6.js
+  run-orders.ts                      # đo một bản: tải, kill tiến trình, đối soát
+  show-results.mjs
+  negative-drills.ts
+docker-compose.yml                   # postgres; profile truoc, sau, bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(chỉ cần Docker; k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+docker compose up -d --wait  # chỉ dựng PostgreSQL có PGMQ
+pnpm typecheck && pnpm test
+pnpm bench:drills            # phép thử âm, cần PostgreSQL đang chạy, khoảng 5 phút
+docker compose down -v
+
+# Đo hai bản, mỗi lệnh khoảng 6 phút và tự dọn sau khi xong; đừng gập nắp máy trong lúc đo
+pnpm bench:orders --variant truoc --run main
+pnpm bench:orders --variant sau --run main
+pnpm bench:show main
 ```
+
+## Bài học sau khi làm
+
+- Saga xóa được cả hai loại đơn lệch: 108 đơn ở bản trước, 0 ở bản sau, dù tiến trình bị kill 3 lần mỗi lượt. Thứ làm nên khác biệt là trạng thái bền và việc gửi lệnh cùng transaction, không phải bản thân message.
+- Lỗi đắt nhất của bản trước là coi timeout là thất bại: 104 khách mất tiền cho đơn đã hủy, gấp 26 lần số đơn do crash.
+- Thiết kế ban đầu của bài có lỗi: hết hạn thì bù ngay, không có bước hoàn tiền, và `RESERVING` có thể kẹt. Sửa bằng `VOIDING`, `VoidPayment` và hạn chót cho mọi trạng thái. Viết máy trạng thái thành bảng thuần giúp thấy các đường còn thiếu.
+- Một race thật được phát hiện khi đọc lại code, trước lúc chạy: bù song song với giữ hàng làm hàng bị giữ vĩnh viễn. Test chạy song song 60 saga giữ cho lỗi này không quay lại.
+- Saga không làm API sống dậy: cả hai bản đều mất 66 – 88 request lúc kill. Khác biệt nằm ở chỗ đơn đã nhận thì không bao giờ bị bỏ dở.
+- Hạn chế lớn nhất: ba schema chung một PostgreSQL. Bài dựa vào `pgmq.send` cùng transaction, nên tách máy chủ thì phải có Outbox (14/03) và idempotent consumer (14/04) đầy đủ.
+- Tên file trong `bench/` không được bắt đầu bằng `results`: `kiem-chung-lab.mjs` coi đó là file kết quả thô và chặn commit.

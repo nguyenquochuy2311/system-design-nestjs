@@ -502,3 +502,16 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/04 (mục 3.4, 4, 5.1 của bài).
 **Ảnh hưởng:** 07/05, 07/07, 07/08 và scope 14 theo (1), (4). Mục tiêu "≤ 1,3 lần" của 07/04 ghi là không đạt ổn định, không điều chỉnh để đạt. Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/07 (Saga)
+
+**Quyết định**
+1. **Đính chính thiết kế 07/07:** hết hạn 15 phút khi đang ở `CHARGING` không bù ngay mà sang `VOIDING`: gọi `VoidPayment`, cổng đã trừ thì hoàn tiền, chưa trừ thì khóa key, rồi mới nhả hàng. Hạn chót áp dụng cho mọi trạng thái chưa kết thúc. Thiết kế gốc có thể hủy đơn khi tiền đã trừ và có thể kẹt ở `RESERVING`.
+2. **Máy trạng thái của quy trình nhiều bước viết thành bảng thuần** (`saga-machine.ts`): tổ hợp không có trong bảng là trả lời trùng hoặc tới muộn, bỏ qua chứ không phải lỗi. Test duyệt được mọi tổ hợp.
+3. **Bước bù chạy song song với bước nó bù**: chèn tombstone trước, `UPDATE` sau. `INSERT ... ON CONFLICT` chờ transaction kia commit, còn `UPDATE` không thấy dòng chưa commit. Ngược thứ tự thì hàng bị giữ vĩnh viễn.
+4. **Message đi cùng transaction với trạng thái, kể cả message đầu tiên.** Phép thử âm cho thấy gửi ngoài transaction còn gây saga kẹt: bên nhận trả lời trước khi đơn commit, orchestrator không thấy saga nên bỏ qua trả lời.
+5. **Cổng giả tính kết quả từ key** để hai bản nhận cùng tỉ lệ lỗi, và gửi lại cùng key luôn cho cùng kết quả.
+6. **Đặt tên file trong `bench/`**: không bắt đầu bằng `results`, vì `kiem-chung-lab.mjs` coi đó là file kết quả thô.
+
+**Lý do:** kiểm trực tiếp ở bài 07/07 (mục 3.3, 3.5, 4, 5.1 của bài).
+**Ảnh hưởng:** 14/03, 14/04, 14/07 dùng lại (1), (3), (4). Bài 07/07 chỉ code orchestration và chung một PostgreSQL, ghi ở mục 4 và 5.1; khi làm 14/03 có thể quay lại phần tách máy chủ. Bảng cổng của skill không đổi.

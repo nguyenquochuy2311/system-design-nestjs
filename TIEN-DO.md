@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 168 | 0 | 25 |
+| 193 | 167 | 0 | 26 |
 
 ## Theo scope
 
@@ -18,7 +18,7 @@
 | [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 3 | 0 | 3 |
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
 | [06 · Thời gian thực (`frontend / backend / realtime`)](./06-frontend-backend-realtime/) | 7 | 1 | 3 | 3 | 7 | 0 | 0 |
-| [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 4 | 0 | 4 |
+| [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 3 | 0 | 5 |
 | [08 · Monolith (`backend / monolithics`)](./08-backend-monolith/) | 7 | 2 | 3 | 2 | 5 | 0 | 2 |
 | [09 · Monorepo (`backend / monorepo`)](./09-backend-monorepo/) | 6 | 2 | 3 | 1 | 6 | 0 | 0 |
 | [10 · AI — RAG (`backend / AI RAG`)](./10-backend-ai-rag/) | 9 | 2 | 5 | 2 | 9 | 0 | 0 |
@@ -121,7 +121,7 @@
 | [Timeouts, Retries, Backoff with Jitter — Retry đồng loạt sau sự cố tạo cơn bão request thứ hai](./07-backend-microservices/04-timeout-retry-backoff-jitter-retry-dong-loat-tao-bao-moi/) | 🟡 Trung bình | ✅ Hoàn thành | 2026-11-04 |
 | [API Composition — Màn hình chi tiết đơn cần dữ liệu từ 4 service, ghép ở đâu?](./07-backend-microservices/05-api-composition-man-hinh-don-hang-can-du-lieu-4-service/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Service Discovery — Service deploy lại đổi IP, các service khác gọi vào địa chỉ cũ](./07-backend-microservices/06-service-discovery-service-moi-deploy-doi-ip/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
-| [Saga (choreography vs orchestration) — Đặt hàng → trừ kho → thanh toán: bước 3 lỗi thì hoàn kho thế nào khi không còn transaction chung](./07-backend-microservices/07-saga-dat-hang-tru-kho-thanh-toan-hoan-tien-khi-loi/) | 🔴 Nâng cao | 📋 Kế hoạch | 2026-10-06 |
+| [Saga (choreography vs orchestration) — Đặt hàng → trừ kho → thanh toán: bước 3 lỗi thì hoàn kho thế nào khi không còn transaction chung](./07-backend-microservices/07-saga-dat-hang-tru-kho-thanh-toan-hoan-tien-khi-loi/) | 🔴 Nâng cao | ✅ Hoàn thành | 2026-11-04 |
 | [Bulkhead — Một khách hàng lớn chiếm hết pool kết nối, mọi khách khác bị lỗi theo](./07-backend-microservices/08-bulkhead-mot-tenant-lon-chiem-het-thread-pool/) | 🔴 Nâng cao | 📋 Kế hoạch | 2026-10-06 |
 
 ### 08 · Monolith (`backend / monolithics`)
