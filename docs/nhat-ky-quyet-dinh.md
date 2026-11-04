@@ -442,3 +442,28 @@ OpenTelemetry logs, pino, Grafana Loki, Docker `json-file`, OWASP Logging Cheat 
 
 **Lý do:** ở 23/02, test quét log dùng `findPii` cùng regex với bộ che; làm yếu regex thì SĐT thô lọt vào Loki mà hai test quét vẫn xanh. Đổi sang bộ nhận diện riêng + kiểm giá trị đã gửi thì cùng phép thử âm đỏ 3/3.
 **Ảnh hưởng:** mọi bài có test kiểu "không có X trong dữ liệu đầu ra" (scope 19, 23, 13, 21…); phép thử âm của người điều phối nên thử làm yếu chính bộ lọc để xem test có mù theo không.
+
+## 2026-11-04 — Quy ước lab nhiều service NestJS rút ra từ bài 07/01 (Decompose by Bounded Context)
+
+**Quyết định**
+1. **Gói app NestJS bằng esbuild thành `dist/<app>.cjs`** (định dạng CommonJS, không dùng ESM kèm banner `createRequire` như 23/01), `external` gồm `pg-native`, `@nestjs/microservices`, `@nestjs/websockets`, `class-transformer`, `class-validator`. `main.ts` không dùng top-level await vì esbuild từ chối ở định dạng này. Đã kiểm trên host: cả 5 bundle khởi động và trả lời HTTP; chưa kiểm trong container.
+2. **Lab nhiều service NestJS chạy service ngay trong tiến trình test**: mỗi app có `Module.register(config)` trả `DynamicModule`, `main.ts` chỉ đọc biến môi trường. Test gọi `app.listen(0)`, "tắt service" là `app.close()`, log đi qua `setLogSink` để đếm theo correlation id. Nhờ vậy `pnpm test` chỉ cần PostgreSQL; container chỉ dựng khi đo, theo profile Compose. Mẫu: `test/support/stack.ts` của bài 07/01.
+3. **Phép thử âm phải đòi test xanh trước khi sửa mã nguồn** (bổ sung nhật ký 03/01 điểm 5): chỉ kiểm tổng số test > 0 là chưa đủ, vì DB tắt thì test đỏ sẵn và kịch bản "đạt" giả. Mẫu: `bench/negative-drills.ts` của bài 07/01.
+4. **Chỉ mở ra host cổng cần gọi từ ngoài** (bài 07/01: 3100, 3101). Service nội bộ chỉ nói chuyện trong mạng Compose, nên lab nhiều service không chiếm dải cổng dài; ngày 2026-11-04 máy có tiến trình của dự án khác giữ 3102, 3104, 3106.
+
+**Lý do:** (1)–(3) gặp hoặc kiểm trực tiếp ở bài 07/01. Riêng (3): bản đầu của script được rà lại trước khi chạy và lỗi nằm ở logic "có test đỏ là đạt".
+**Ảnh hưởng:** các bài còn lại của scope 07 và các bài NestJS nhiều service dùng lại (1), (2), (4); mọi lab có phép thử âm theo (3). Bài 07/01 đang ở 🔨: máy ngày 2026-11-04 chưa cài Docker, nên SQL, PGMQ, Compose và k6 chưa chạy thật. Quy ước (1) và (2) cần được xác nhận lại khi bài chạy trên PostgreSQL thật. Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Bài 07/01 chạy thật trên Docker: xác nhận mục trên và quy ước đo mới
+
+Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy thật và chuyển sang ✅.
+
+**Quyết định**
+1. **Quy ước (1) và (2) của mục trên được xác nhận**: bundle `.cjs` chạy trong `node:20-alpine`, và 34/34 test đạt trên PostgreSQL 16.15 + PGMQ 1.13.0.
+2. **Role không phải superuser dùng PGMQ** cần `GRANT USAGE ON SCHEMA pgmq`, cùng quyền trên `ALL TABLES`, `ALL SEQUENCES`, `ALL FUNCTIONS IN SCHEMA pgmq`, cấp sau khi tạo hàng đợi. Đã kiểm với `pgmq.send`, `read`, `archive` trên 1.13.0. Grant theo `ALL TABLES` chỉ phủ hàng đợi đã có lúc chạy lệnh; hàng đợi tạo sau phải grant lại.
+3. **Dừng một service trong lượt đo dùng `docker stop <id>`** lấy từ `docker compose ps -q <service>`, để chắc chỉ một container dừng. Mẫu: `bench/run-place-order.ts` của bài 07/01.
+4. **Bài về kiến trúc không lấy độ trễ trong một máy làm bằng chứng chính.** Service, database và k6 cùng mạng Compose nên lời gọi rất rẻ: bớt 7 lời gọi chỉ giảm p95 từ 11,4 xuống 8,8 ms, và mục tiêu ≤ 400 ms đặt theo số minh họa thì bản "trước" cũng đạt. Những bài như vậy lấy số lời gọi và phép thử tắt service làm chỉ số chính. Muốn đo chi phí mạng thật thì tiêm độ trễ vào từng lời gọi bằng Toxiproxy.
+5. **`docker` trên máy này** nằm ở `~/.docker/bin`, không có trong `PATH` của shell không đăng nhập: script và lệnh chạy từ công cụ tự động cần `export PATH="$HOME/.docker/bin:$PATH"`. Máy ảo Docker có 10 CPU và 7,75 GiB RAM.
+
+**Lý do:** kiểm trực tiếp ở bài 07/01 (mục 3.4, 4, 5.1 của bài). Với (4): ba vòng 60 giây xoay thứ tự cho chênh p95 1,9 – 3,3 ms, hai dải không chồng nhau, nên chênh lệch có thật nhưng nhỏ.
+**Ảnh hưởng:** các bài còn lại của scope 07 và bài có mục tiêu độ trễ theo số minh họa xem lại chỉ số chính theo (4), nhất là 07/05 và 07/06. Bài 07/02, 07/07 dùng lại (2). Bảng cổng của skill không đổi.

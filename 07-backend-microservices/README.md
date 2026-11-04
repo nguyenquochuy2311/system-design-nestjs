@@ -35,7 +35,7 @@ flowchart TB
 
 | # | Bài toán (pattern — triệu chứng) | Mức | Pattern gốc / nguồn | Trạng thái |
 |---|---|---|---|---|
-| 01 | [Decompose by Bounded Context — Tách service theo nghiệp vụ (đơn hàng, kho, thanh toán) thay vì theo bảng](./01-decomposition-bounded-context-tach-service-theo-nghiep-vu/) | 🟢 | Evans, *Domain-Driven Design* (2003) — Bounded Context; microservices.io "Decompose by business capability / subdomain"; Newman, *Building Microservices* | 📋 |
+| 01 | [Decompose by Bounded Context — Tách service theo nghiệp vụ (đơn hàng, kho, thanh toán) thay vì theo bảng](./01-decomposition-bounded-context-tach-service-theo-nghiep-vu/) | 🟢 | Evans, *Domain-Driven Design* (2003) — Bounded Context; microservices.io "Decompose by business capability / subdomain"; Newman, *Building Microservices* | ✅ |
 | 02 | [Database per Service — Hai service cùng ghi vào một bảng, đổi schema một bên làm hỏng bên kia](./02-database-per-service-hai-service-cung-sua-mot-bang/) | 🟢 | microservices.io "Database per service"; Newman, *Monolith to Microservices* (2019) ch. tách DB | 📋 |
 | 03 | [Circuit Breaker — Service khuyến mãi chậm 30 giây kéo sập toàn bộ checkout](./03-circuit-breaker-service-khuyen-mai-cham-lam-sap-checkout/) | 🟡 | Nygard, *Release It!* (2018); Fowler bliki "CircuitBreaker" (2014); Azure "Circuit Breaker" | 📋 |
 | 04 | [Timeouts, Retries, Backoff with Jitter — Retry đồng loạt sau sự cố tạo cơn bão request thứ hai](./04-timeout-retry-backoff-jitter-retry-dong-loat-tao-bao-moi/) | 🟡 | Amazon Builders' Library "Timeouts, retries, and backoff with jitter"; Marc Brooker, "Exponential Backoff And Jitter" (2015); Azure "Retry" | 📋 |

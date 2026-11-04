@@ -1,0 +1,168 @@
+# Lab 07/01. `docker compose up -d --wait` chỉ dựng PostgreSQL có PGMQ, đủ cho `pnpm test` (service chạy trong tiến trình test).
+# Để đo: profile `truoc` (6 entity service + checkout-api) hoặc `sau` (4 context), k6 ở profile `bench`, cùng mạng Compose.
+# Service là file JS đã gói bằng esbuild (scripts/build-services.mjs, chạy sau `pnpm install`), mount chỉ đọc vào node:20-alpine.
+# Mật khẩu role chỉ dùng cho lab, cổng chỉ mở trên 127.0.0.1.
+name: lab-07-01
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-01"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+x-truoc-entity: &truoc-entity
+  <<: *node-service
+  profiles: ["truoc"]
+  command: ["node", "truoc.cjs"]
+
+services:
+  postgres:
+    image: ghcr.io/pgmq/pg16-pgmq:v1.13.0
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lab
+    ports:
+      - "127.0.0.1:55432:5432"
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    labels:
+      lab.id: "07-01"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d lab"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  user-service:
+    <<: *truoc-entity
+    environment: &truoc-env
+      SERVICE_NAME: user-service
+      DATABASE_URL: postgres://truoc_app:truoc_app@postgres:5432/lab
+
+  product-service:
+    <<: *truoc-entity
+    environment:
+      <<: *truoc-env
+      SERVICE_NAME: product-service
+
+  stock-service:
+    <<: *truoc-entity
+    environment:
+      <<: *truoc-env
+      SERVICE_NAME: stock-service
+
+  promotion-service:
+    <<: *truoc-entity
+    environment:
+      <<: *truoc-env
+      SERVICE_NAME: promotion-service
+
+  payment-service:
+    <<: *truoc-entity
+    environment:
+      <<: *truoc-env
+      SERVICE_NAME: payment-service
+
+  order-service:
+    <<: *truoc-entity
+    environment:
+      <<: *truoc-env
+      SERVICE_NAME: order-service
+
+  checkout-api:
+    <<: *truoc-entity
+    environment:
+      SERVICE_NAME: checkout-api
+      USER_URL: http://user-service:3000
+      PRODUCT_URL: http://product-service:3000
+      STOCK_URL: http://stock-service:3000
+      PROMOTION_URL: http://promotion-service:3000
+      PAYMENT_URL: http://payment-service:3000
+      ORDER_URL: http://order-service:3000
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      stock-service:
+        condition: service_healthy
+      promotion-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+
+  catalog:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "catalog.cjs"]
+    environment:
+      DATABASE_URL: postgres://catalog_app:catalog_app@postgres:5432/lab
+      CATALOG_EVENT_SCHEMA: ${CATALOG_EVENT_SCHEMA:-v1}
+    ports:
+      - "127.0.0.1:3101:3000"
+
+  inventory:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "inventory.cjs"]
+    environment:
+      DATABASE_URL: postgres://inventory_app:inventory_app@postgres:5432/lab
+
+  payment:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "payment.cjs"]
+    environment:
+      DATABASE_URL: postgres://payment_app:payment_app@postgres:5432/lab
+
+  ordering:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "ordering.cjs"]
+    environment:
+      DATABASE_URL: postgres://ordering_app:ordering_app@postgres:5432/lab
+      INVENTORY_URL: http://inventory:3000
+      PAYMENT_URL: http://payment:3000
+      CATALOG_EVENT_POLL_MS: "200"
+    ports:
+      - "127.0.0.1:3100:3000"
+    # Cố ý không phụ thuộc catalog: Ordering phải khởi động và bán hàng được khi Catalog đang tắt.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+      payment:
+        condition: service_healthy
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "07-01"
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "07-01"

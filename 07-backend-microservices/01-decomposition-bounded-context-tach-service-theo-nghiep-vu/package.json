@@ -1,0 +1,40 @@
+{
+  "name": "bounded-context-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 07/01: Decompose by Bounded Context — 6 entity service + checkout-api (trước) so với 4 context Ordering, Catalog, Inventory, Payment (sau) trên NestJS 10, PostgreSQL 16, PGMQ",
+  "scripts": {
+    "postinstall": "node scripts/build-services.mjs",
+    "build": "node scripts/build-services.mjs",
+    "db:up": "docker compose up -d --wait",
+    "db:psql": "docker compose exec postgres psql -U postgres -d lab",
+    "db:reset": "docker compose down -v",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint apps libs",
+    "bench:place-order": "tsx bench/run-place-order.ts",
+    "bench:drills": "tsx bench/negative-drills.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.22",
+    "@nestjs/core": "10.4.22",
+    "@nestjs/platform-express": "10.4.22",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/pg": "8.23.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  }
+}

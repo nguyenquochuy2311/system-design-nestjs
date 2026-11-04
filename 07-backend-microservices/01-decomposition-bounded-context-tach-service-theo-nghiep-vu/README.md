@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🟢 Cơ bản | 📋 Kế hoạch | Bounded Context — Evans, *Domain-Driven Design* (2003); Decompose by subdomain — Richardson, microservices.io (2018) | 2026-10-06 |
+| 07 · backend / microservices | 🟢 Cơ bản | ✅ Hoàn thành | Bounded Context — Evans, *Domain-Driven Design* (2003); Decompose by subdomain — Richardson, microservices.io (2018) | 2026-11-04 |
 
 > **Một câu tóm tắt:** Chia hệ thống theo *ranh giới nghiệp vụ* (mỗi context có mô hình và ngôn ngữ riêng) thay vì theo *bảng dữ liệu*, để một quy trình kinh doanh chỉ chạm vào một hoặc hai service và một đội có thể đổi mô hình của mình mà không kéo đội khác theo.
 
@@ -80,12 +80,15 @@ sequenceDiagram
   participant KH as Khách hàng
   participant ORD as Ordering
   participant INV as Inventory
+  participant PAY as Payment
   participant CAT as Catalog
   KH->>ORD: Đặt hàng 2 SKU
   ORD->>ORD: Tạo đơn với giá đã chốt từ bản sao cục bộ
-  ORD->>INV: Lệnh đặt giữ tồn kho
+  ORD->>INV: Lệnh đặt giữ tồn kho, một lời gọi cho cả đơn
   INV-->>ORD: Đã giữ, hết hạn sau 15 phút
-  ORD-->>KH: Đơn đã tạo, chờ thanh toán
+  ORD->>PAY: Lệnh thu tiền, chỉ gồm mã đơn và số tiền
+  PAY-->>ORD: Đã thu
+  ORD-->>KH: Đơn đã xác nhận
   Note over ORD,CAT: Catalog đổi cấu trúc mô tả sản phẩm cùng lúc, Ordering không cần biết
   CAT-->>ORD: Sự kiện ProductPriceChanged
   ORD->>ORD: Lớp dịch chuyển sự kiện sang mô hình Ordering, bỏ qua trường lạ
@@ -113,6 +116,9 @@ sequenceDiagram
 - **Context quá nhỏ.** Tách "giỏ hàng" và "đơn hàng" thành hai service khi chúng luôn thay đổi cùng nhau tạo ra gọi mạng vô nghĩa. Dấu hiệu: hai service luôn deploy cùng lúc.
 - **Bỏ qua Context Map.** Không ghi ai upstream của ai dẫn tới sửa một sự kiện làm hỏng ba consumer. Cách tránh: mỗi sự kiện có chủ sở hữu và phiên bản (xem `13` bài 02).
 - **Nhảy thẳng sang mạng.** Vẽ lại ranh giới trong một codebase (module) trước, rồi mới tách tiến trình khi ranh giới đã ổn vài tháng.
+- **Ném lỗi khi gặp sự kiện không hiểu.** Gặp khi viết lớp dịch: message không được archive sẽ quay lại sau visibility timeout và lặp mãi. Lớp dịch phải trả kết quả "cách ly" để consumer ghi vào `ordering.quarantined_events` rồi đi tiếp. Phép thử âm "ném lỗi thay vì cách ly" làm test đỏ.
+- **Luật ESLint chỉ bắt import tĩnh.** `no-restricted-imports` không thấy `await import()` hay `require()` dựng từ biến, nên `test/context-boundaries.test.ts` có thêm bộ đếm riêng phân giải đường dẫn thật. Bộ đếm này cũng không bắt được đường dẫn dựng lúc chạy.
+- **Phép thử âm "đạt" giả khi DB chưa bật.** Bản đầu của `bench/negative-drills.ts` coi test đỏ là đạt, nên DB tắt thì mọi kịch bản đều "đạt". Script nay đòi test xanh trước khi sửa mã nguồn.
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -128,6 +134,14 @@ sequenceDiagram
 
 **Thay đổi so với hệ thống hiện tại:** gộp 6 entity service thành 4 context theo nghiệp vụ; mỗi context nhận lại quy tắc của mình từ Checkout API; thêm lớp dịch sự kiện ở phía nhận; đội vận hành phải quen với việc dữ liệu được nhân bản có chủ đích (giá đã chốt trong Ordering) và học đọc Context Map khi điều tra sự cố.
 
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22 (`platform-express`), `pg` 8.23.1, TypeScript 5.9.3, ESLint 10.12.0, `typescript-eslint` 8.71.1, Vitest 5.0.3, esbuild 0.28.2, PostgreSQL có PGMQ từ `ghcr.io/pgmq/pg16-pgmq:v1.13.0`, k6 `grafana/k6:1.4.2`.
+- Dùng `pg` trực tiếp thay vì Kysely: truy vấn ít và mỗi context có schema riêng, thêm query builder không giúp chứng minh pattern.
+- `customers` và `promotions` nằm trong Ordering vì bài chỉ có 4 context và chưa có quy trình riêng cho hai thứ này (xem `docs/context-map.md`).
+- Gọi HTTP giữa service dùng `fetch` có sẵn của Node, timeout 2 giây. Không dùng `@nestjs/microservices`: mục này chọn HTTP và PGMQ, mà NestJS không có transporter sẵn cho PGMQ.
+- Mỗi app được esbuild gói thành một file `dist/<app>.cjs` chạy trên `node:20-alpine`, theo mẫu 23/01. Dùng CommonJS vì NestJS và Express là CommonJS. Vì esbuild không phát `design:paramtypes`, mọi tham số constructor ghi `@Inject` tường minh (nhật ký 08/01 điểm 1).
+- Test chạy các app NestJS ngay trong tiến trình test trên cổng ngẫu nhiên, nên "tắt Catalog" là đóng app đó. Đo tải thì chạy container thật, và `bench/run-place-order.ts` dừng đúng container Catalog.
+
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
 | Chỉ số | Trước (minh họa) | Mục tiêu khi thực hành | Cách đo |
@@ -142,6 +156,56 @@ sequenceDiagram
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** một tính năng về đơn hàng chỉ cần một đội và một lịch deploy; sự cố ở Catalog không làm mất doanh thu đặt hàng; đội kho được tự do đổi mô hình tồn kho.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp, không có khoảng ngủ. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. PostgreSQL 16.15, PGMQ 1.13.0, service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2. Service, database và k6 chạy cùng mạng Compose, nên "gọi mạng" ở đây là gọi trong một máy. Load 1 phút của macOS: 2,7 – 4,7. Máy có tiến trình của dự án khác chạy cùng lúc.
+
+**Tải:** mô hình mở 50 request/giây trong 5 phút, mỗi đơn 2 SKU, seed 1.000 khách và 1.000 SKU. Hai bản nhận cùng một chuỗi request. Mỗi bản dựng từ volume sạch, chạy tuần tự trên một máy. Bản trước và bản sau đều 15.001/15.001 đơn thành công, không rớt iteration nào.
+
+| Chỉ số | Trước | Sau | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| Số service một đơn đi qua | 6 (5 entity service + `checkout-api`) | 3 | ≤ 3 | Đạt, giống nhau ở cả 15.001 đơn |
+| Số lần gọi mạng tuần tự | 9 | 2 | ≤ 3 | Đạt, giống nhau ở cả 15.001 đơn |
+| p95 đặt hàng ở 50 request/giây | 11,4 ms | 8,8 ms | ≤ 400 ms | Đạt, nhưng bản trước cũng đạt nên chỉ số này không phân biệt được hai bản ở lab (xem dưới) |
+| Tỷ lệ đặt hàng thành công khi tắt Catalog | 0 % (0/1.500, tắt `product-service`) | 100 % (1.501/1.501) | 100 % | Đạt, lượt 30 giây sau khi dừng container |
+| Số import chéo giữa các context | không áp dụng | 0 | 0 | Đạt: ESLint và bộ đếm độc lập trong `test/context-boundaries.test.ts` |
+
+**Độ trễ chi tiết** (lượt chính 5 phút, đơn vị ms):
+
+| Bản | p50 | p95 | p99 | Lớn nhất |
+|---|---|---|---|---|
+| Trước | 6,3 | 11,4 | 19,6 | 162,8 |
+| Sau | 4,7 | 8,8 | 13,4 | 308,1 |
+
+**Ba vòng 60 giây, xoay thứ tự** (mỗi vòng 3.000 – 3.001 đơn mỗi bản, đơn vị ms):
+
+| Vòng | Thứ tự chạy | Trước p50 / p95 | Sau p50 / p95 | Chênh p95 |
+|---|---|---|---|---|
+| 1 | sau, trước | 6,2 / 10,4 | 4,6 / 7,6 | 2,8 |
+| 2 | trước, sau | 6,4 / 10,4 | 4,8 / 8,4 | 1,9 |
+| 3 | sau, trước | 6,9 / 11,9 | 4,7 / 8,6 | 3,3 |
+
+**Đọc số độ trễ thế nào**
+- Bản sau nhanh hơn ở mọi vòng và hai dải p95 không chồng nhau (trước 10,4 – 11,9; sau 7,6 – 8,6), nhưng chỉ khoảng 2 – 3 ms. Số 1.400 ms trong bảng trên là minh họa; lab không tái hiện được mức đó.
+- Lý do chính là cả hệ chạy trong một máy, mỗi lời gọi rất rẻ. Lab không đo được bớt 7 lời gọi sẽ tiết kiệm bao nhiêu trên mạng thật giữa các máy; muốn biết phải tiêm độ trễ vào từng lời gọi.
+- Bản sau chạy nhiều câu SQL hơn: 14 so với 9 mỗi đơn (đếm từ code, gồm `BEGIN` và `COMMIT`), vì có trạng thái `PENDING` và giữ cả đơn trong transaction. Phần này ăn bớt lợi ích của việc bớt lời gọi, nhưng chưa tách riêng được bao nhiêu.
+- Giá trị lớn nhất của bản sau cao hơn ở lượt chính (308,1 so với 162,8 ms); ở ba vòng 60 giây, bản sau có 88,0, 58,6 và 276,2 ms, bản trước có 168,4, 165,8 và 178,2 ms. Mỗi số chỉ là một request, nguyên nhân chưa tách riêng được.
+- Lợi ích đo được chắc chắn của bài là số lời gọi và khả năng chịu lỗi (0 % so với 100 %), không phải độ trễ.
+
+**Test:** 34/34 đạt trên PostgreSQL và PGMQ thật. `node scripts/kiem-chung-lab.mjs` đạt 7/7 bước từ volume sạch.
+
+**Phép thử âm** (`pnpm bench:drills`, cột "test đỏ" là số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ | Test nào đỏ |
+|---|---|---|
+| Ordering gọi Catalog lúc đặt hàng | 1/2 | Tắt Catalog, mọi đơn vẫn được xác nhận |
+| Lớp dịch ném lỗi thay vì cách ly | 1/6 | Sự kiện đổi tên không báo phiên bản bị cách ly |
+| Lớp dịch chỉ hiểu v1 | 2/6 | Dịch v2, và Catalog phát v2 tới đơn hàng |
+| Bỏ điều kiện phiên bản khi ghi bản sao giá | 1/4 | Sự kiện cũ tới muộn không kéo giá về bản trước |
+| Tắt luật chặn import chéo của Ordering | 2/6 | ESLint chặn import kiểu, chặn mọi cặp context |
+
+**Hạn chế:** mọi service chung một PostgreSQL và một máy, nên kết quả độ trễ không áp dụng cho triển khai nhiều máy. Mỗi cấu hình một lượt 5 phút và ba vòng 60 giây. Chạy pin, cùng nguồn điện cho cả hai bản. Tải 50 request/giây nhẹ so với sức máy, nên lab chưa cho thấy hai bản khác nhau thế nào khi gần bão hòa.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -170,30 +234,62 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng 6 entity service tối giản (NestJS, mỗi service một bảng) và một Checkout API gọi tuần tự; Docker Compose với Postgres và PGMQ.
-- [ ] Bước 2: đo "trước": k6 đặt hàng 50 request/giây trong 5 phút; đếm service và số lần gọi theo correlation id; tắt `product-service` và ghi tỷ lệ thành công.
-- [ ] Bước 3: viết Context Map (file Markdown trong bài), gộp lại thành 4 context, chuyển quy tắc đặt hàng vào Ordering, thêm bản sao giá và lớp dịch sự kiện từ Catalog qua PGMQ; bật ESLint chặn import chéo.
-- [ ] Bước 4: đo "sau" cùng kịch bản, ghi số thật kèm môi trường vào mục 5.
-- [ ] Bước 5: test chứng minh: (a) tắt Catalog vẫn đặt hàng được; (b) đổi tên trường trong sự kiện Catalog không làm Ordering lỗi; (c) lint fail khi Ordering import kiểu từ Catalog.
+- [x] Bước 1: dựng 6 entity service tối giản (NestJS, mỗi service một bảng) và một Checkout API gọi tuần tự; Docker Compose với Postgres và PGMQ.
+- [x] Bước 2: đo "trước": k6 đặt hàng 50 request/giây trong 5 phút; đếm service và số lần gọi theo correlation id; tắt `product-service` và ghi tỷ lệ thành công.
+- [x] Bước 3: viết Context Map (file Markdown trong bài), gộp lại thành 4 context, chuyển quy tắc đặt hàng vào Ordering, thêm bản sao giá và lớp dịch sự kiện từ Catalog qua PGMQ; bật ESLint chặn import chéo.
+- [x] Bước 4: đo "sau" cùng kịch bản, ghi số thật kèm môi trường vào mục 5.
+- [x] Bước 5: test chứng minh: (a) tắt Catalog vẫn đặt hàng được; (b) đổi tên trường trong sự kiện Catalog không làm Ordering lỗi; (c) lint fail khi Ordering import kiểu từ Catalog.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 apps/
-  truoc/              # 6 entity service + checkout-api tái hiện triệu chứng
-  ordering/           # context Ordering: đơn hàng, giá đã chốt, lớp dịch sự kiện
-  catalog/
+  truoc/
+    entity-services.ts            # 6 service CRUD mỏng, mỗi service một bảng
+    checkout-api.ts               # quy tắc đặt hàng rải qua 9 lời gọi tuần tự
+  ordering/
+    place-order.service.ts        # [PATTERN] quy tắc đặt hàng có một chủ, không gọi Catalog
+    acl/catalog-event-translator.ts  # [PATTERN] Anti-Corruption Layer
+    catalog-event.consumer.ts     # [PATTERN] đọc PGMQ, chỉ bản mới hơn được ghi đè
+    pricing.ts, order.repository.ts, upstream-clients.ts
+  catalog/                        # [PATTERN] đổi giá và gửi sự kiện cùng transaction
   inventory/
   payment/
-docs/context-map.md   # quan hệ upstream/downstream giữa 4 context
+libs/platform/                    # chỉ hạ tầng: log, correlation id, gọi HTTP, pool DB
+db/init/                          # 01 PGMQ, 02 schema và role, 03 seed
+docs/context-map.md               # quan hệ upstream/downstream giữa 4 context
+eslint.config.js                  # [PATTERN] chặn import chéo giữa các context
 test/
   order-placed-while-catalog-down.test.ts
   catalog-event-field-rename-tolerated.test.ts
-bench/place-order.k6.js
-docker-compose.yml
+  order-hops.test.ts
+  locked-price.test.ts
+  order-rules.test.ts
+  context-boundaries.test.ts
+  data-ownership.test.ts
+bench/
+  place-order.k6.js
+  run-place-order.ts              # đo một bản: k6, đếm lời gọi từ log, tắt một service
+  negative-drills.ts
+docker-compose.yml                # postgres; profile truoc, sau, bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(chỉ cần Docker; k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+docker compose up -d --wait  # chỉ dựng PostgreSQL có PGMQ
+pnpm typecheck && pnpm lint && pnpm test
+pnpm bench:drills            # phép thử âm, cần PostgreSQL đang chạy
+docker compose down -v
+
+# Đo hai bản, mỗi lệnh khoảng 6 phút và tự dọn sau khi xong
+pnpm bench:place-order --variant truoc --run main
+pnpm bench:place-order --variant sau --run main
 ```
+
+## Bài học sau khi làm
+
+- Bài học lớn nhất nằm ở chỗ chỉ số độ trễ không chứng minh được gì: mục tiêu ≤ 400 ms đặt theo số minh họa, nên bản "trước" cũng đạt với 11,4 ms. Trong một máy, 7 lời gọi ít hơn chỉ tiết kiệm 2 – 3 ms. Thứ bài này cải thiện được là số service phải cùng sống để bán hàng, và điều đó thấy rõ ở phép thử tắt service: 0 % so với 100 %.
+- Con số "9 lời gọi" trong bối cảnh không cần ép: một đơn 2 SKU đi qua user, 2 lần product, 2 lần đọc tồn, 2 lần giữ hàng, payment, order là ra đúng 9. Bản sau còn 2 vì Inventory nhận cả đơn trong một lệnh, và mọi thứ còn lại đã nằm trong Ordering.
+- Số 5 trong bảng chưa tính cửa vào. Đếm theo log thì bản trước là 6 service (có `checkout-api`), bản sau là 3 (có Ordering), nên mục 5.1 ghi rõ cách đếm.
+- "Đổi tên trường không làm Ordering lỗi" có hai nghĩa khác nhau. Đổi có báo trước (`schemaVersion: 2`) thì chỉ sửa lớp dịch. Đổi không báo trước thì Ordering không thể tự hiểu; điều làm được là không sập và không chặn sự kiện sau, với giá giữ nguyên bản cũ tới khi đội Ordering xử lý hàng cách ly.
+- Hạn chế của lab: `pgmq.send` cùng transaction với đổi giá chỉ làm được vì mọi context chung một PostgreSQL. Tách máy thì cần Transactional Outbox (14/03). Thu tiền lỗi sau khi đã giữ hàng cũng chưa được bù, phần đặt giữ chỉ tự hết hạn; đó là việc của Saga (07/07).
