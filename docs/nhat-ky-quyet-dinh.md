@@ -537,3 +537,15 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/08 (mục 3.4, 4, 5.1 của bài).
 **Ảnh hưởng:** bài về rate limiting (13/xx), load shedding (18/05) và multi-tenant (02/07) dùng lại (1)–(4). Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/06 (Service Discovery)
+
+**Quyết định**
+1. **Bài cần Kubernetes chạy k3s trong một container Compose**, không cài kind hay k3d. `docker compose up -d --wait` dựng cluster, `kubectl` chạy bằng `docker compose exec`, pod dùng `node:20-alpine` đọc `dist/` qua `hostPath` nên không build image. Mẫu: `docker-compose.yml` và `test/support/cluster.ts` của bài 07/06.
+2. **Một node không có độ trễ lan truyền.** Bài cần độ trễ giữa EndpointSlice và quy tắc mạng đặt `iptables-min-sync-period` có nhãn, kèm đối chứng ở giá trị mặc định.
+3. **`undici`: đặt `connect.timeout` riêng.** `signal` không hủy được request đang chờ kết nối, mặc định là 10 giây. Đồng hồ của tùy chọn này thô, 300 ms đo được khoảng 1 giây. Giới hạn tuổi kết nối dùng `clientTtl` của `Pool`.
+4. **Phép thử âm cho lỗi theo xác suất phải lặp đủ lần trong test** (07/06: 3 lần rollout). Phép thử sửa manifest phải làm thay đổi thật có hiệu lực: `clusterIP` không sửa được bằng `apply`, và đổi cờ k3s cần `down -v` vì dữ liệu nằm trong volume.
+5. **Đo lâu thì nhắc giữ nắp mở.** `caffeinate` không chặn được ngủ khi gập nắp; lượt có khoảng ngủ phải bỏ (nhật ký 04/02 điểm 5).
+
+**Lý do:** kiểm trực tiếp ở bài 07/06 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** scope 16 và các bài cần Kubernetes dùng lại (1), (2); mọi lab gọi HTTP bằng `undici` dùng lại (3). Bảng cổng của skill không đổi.

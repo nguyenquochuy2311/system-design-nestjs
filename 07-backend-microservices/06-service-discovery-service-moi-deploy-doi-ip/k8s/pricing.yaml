@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricing
+  namespace: logistics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pricing
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Luôn đủ pod Ready trong lúc deploy.
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: pricing
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: pricing
+          image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+          command: ["node", "/app/pricing.cjs"]
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: dist
+              mountPath: /app
+              readOnly: true
+          # [PATTERN] Đăng ký bên thứ ba: pod chỉ vào EndpointSlice khi /ready trả 200.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            # [PATTERN] Chờ EndpointSlice lan đi trước khi nhận SIGTERM, để không có request rơi vào pod đã tắt.
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+      volumes:
+        - name: dist
+          hostPath:
+            path: /lab/dist
+            type: Directory
+---
+# [PATTERN] Server-side discovery: phía gọi chỉ biết tên này, kube-proxy chia kết nối tới pod Ready.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing
+  namespace: logistics
+spec:
+  selector:
+    app: pricing
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+# Client-side discovery: DNS trả thẳng IP các pod Ready.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing-headless
+  namespace: logistics
+spec:
+  clusterIP: None
+  selector:
+    app: pricing
+  ports:
+    - port: 3000
+      targetPort: 3000

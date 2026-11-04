@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order
+  namespace: logistics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order
+  template:
+    metadata:
+      labels:
+        app: order
+    spec:
+      containers:
+        - name: order
+          image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+          command: ["node", "/app/order.cjs"]
+          env:
+            # [PATTERN] Phía gọi chỉ biết tên Service; deploy không còn bước sửa địa chỉ.
+            - name: PRICING_TARGETS
+              value: http://pricing.logistics.svc.cluster.local:3000
+            - name: CONNECTION_MAX_AGE_MS
+              value: "1000"
+            - name: PRICING_RETRIES
+              value: "1"
+            - name: HEADLESS_NAME
+              value: pricing-headless.logistics.svc.cluster.local
+            - name: LEGACY_URL
+              value: http://legacy-tracking.logistics.svc.cluster.local:3000
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            periodSeconds: 2
+          volumeMounts:
+            - name: dist
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: dist
+          hostPath:
+            path: /lab/dist
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order
+  namespace: logistics
+spec:
+  type: NodePort
+  selector:
+    app: order
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30080

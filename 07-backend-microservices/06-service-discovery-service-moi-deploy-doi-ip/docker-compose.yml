@@ -1,0 +1,116 @@
+# Lab 07/06. `docker compose up -d --wait` dựng Kubernetes bằng k3s trong một container, cùng "máy ảo" legacy-vm.
+# Máy không cần cài kind hay k3d; kubectl chạy bên trong container k3s. Pod đọc dist/ qua hostPath nên không cần build image.
+# Profile `truoc`: hệ thống cũ, IP ghi tay. k6 ở profile `bench`, cùng mạng. Cổng chỉ mở trên 127.0.0.1.
+name: lab-07-06
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-06"
+
+x-pricing: &pricing
+  <<: *node-service
+  profiles: ["truoc"]
+  command: ["node", "pricing.cjs"]
+
+services:
+  k3s:
+    image: rancher/k3s:v1.33.5-k3s1@sha256:fd4740667b7033055c27d424d0d2d660bf66cedbdb225d68e0eab6dd48aa0fd2
+    privileged: true
+    cgroup: host
+    command:
+      - server
+      - --disable=traefik,metrics-server,servicelb,local-storage
+      - --write-kubeconfig-mode=644
+      # 1s là mặc định của kube-proxy. Đặt lớn hơn để giả lập cụm nhiều node, nơi quy tắc mạng cập nhật chậm hơn EndpointSlice.
+      - --kube-proxy-arg=iptables-min-sync-period=${KUBE_PROXY_MIN_SYNC:-1s}
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - ./dist:/lab/dist:ro
+      - ./k8s:/lab/k8s:ro
+    ports:
+      - "127.0.0.1:3100:30080"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.2
+    labels:
+      lab.id: "07-06"
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "--raw", "/readyz"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  # Phần chưa chuyển lên Kubernetes.
+  legacy-vm:
+    <<: *node-service
+    command: ["node", "pricing.cjs"]
+    environment:
+      STARTUP_DELAY_MS: "0"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.50
+
+  pricing-a:
+    <<: *pricing
+    environment:
+      STARTUP_DELAY_MS: "0"
+    networks:
+      lab:
+        ipv4_address: ${PRICING_A_IP:-172.30.0.11}
+
+  pricing-b:
+    <<: *pricing
+    environment:
+      STARTUP_DELAY_MS: "0"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.12
+
+  # Máy thêm cho mùa cao điểm: chạy được, nhưng không ai sửa danh sách ở phía gọi.
+  pricing-c:
+    <<: *pricing
+    environment:
+      STARTUP_DELAY_MS: "0"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.13
+
+  order-truoc:
+    <<: *node-service
+    profiles: ["truoc"]
+    command: ["node", "order.cjs"]
+    environment:
+      PRICING_TARGETS: ${PRICING_TARGETS:-http://172.30.0.11:3000,http://172.30.0.12:3000}
+    ports:
+      - "127.0.0.1:3101:3000"
+    networks:
+      lab:
+        ipv4_address: 172.30.0.20
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    networks:
+      - lab
+    labels:
+      lab.id: "07-06"
+
+networks:
+  lab:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

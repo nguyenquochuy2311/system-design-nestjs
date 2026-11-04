@@ -1,0 +1,32 @@
+{
+  "name": "service-discovery-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lab bài 07/06: Service Discovery — IP cứng trong cấu hình (trước) so với Kubernetes Service, DNS, readiness probe, preStop (sau), chạy bằng k3s trong container",
+  "scripts": {
+    "postinstall": "node scripts/build-services.mjs",
+    "build": "node scripts/build-services.mjs",
+    "stack:up": "docker compose up -d --wait",
+    "stack:down": "docker compose down -v",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:scenario": "tsx bench/run-scenario.ts",
+    "bench:drills": "tsx bench/negative-drills.ts",
+    "bench:show": "node bench/show-results.mjs"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "fastify": "5.12.5",
+    "undici": "7.30.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

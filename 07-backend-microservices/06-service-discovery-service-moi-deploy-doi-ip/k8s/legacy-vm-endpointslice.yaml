@@ -1,0 +1,27 @@
+# Service không selector: phần còn ở máy ảo vẫn có tên DNS giống mọi service khác trong giai đoạn chuyển đổi.
+# Đây là chỗ duy nhất còn IP viết tay; IP là của container legacy-vm trong docker-compose.yml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-tracking
+  namespace: logistics
+spec:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: legacy-tracking-vm
+  namespace: logistics
+  labels:
+    kubernetes.io/service-name: legacy-tracking
+addressType: IPv4
+ports:
+  - name: http
+    port: 3000
+endpoints:
+  - addresses:
+      - 172.30.0.50
