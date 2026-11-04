@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🟢 Cơ bản | 📋 Kế hoạch | Database per Service — Richardson, microservices.io / *Microservices Patterns* (2018); tách DB — Newman, *Monolith to Microservices* (2019) | 2026-10-06 |
+| 07 · backend / microservices | 🟢 Cơ bản | ✅ Hoàn thành | Database per Service — Richardson, microservices.io / *Microservices Patterns* (2018); tách DB — Newman, *Monolith to Microservices* (2019) | 2026-11-04 |
 
 > **Một câu tóm tắt:** Mỗi service sở hữu riêng dữ liệu của mình (ít nhất là schema và quyền truy cập riêng); service khác chỉ lấy dữ liệu qua API hoặc sự kiện, nên đổi cấu trúc bảng ở một bên không còn làm sập bên kia.
 
@@ -113,6 +113,9 @@ sequenceDiagram
 - **Publish sự kiện ngoài transaction.** Ghi đơn xong, crash trước khi publish là mất sự kiện; đây là bài Transactional Outbox (`14` bài 03). Với PGMQ cùng database, enqueue trong cùng transaction là đủ.
 - **Join chéo qua API cho báo cáo.** Báo cáo cần dữ liệu cả hai bên nên dùng bản sao hoặc kho dữ liệu báo cáo, không gọi API theo từng dòng.
 - **Quên xóa cột cũ.** Sau khi shipping không còn đọc `orders.address`, phải có bước "contract" xóa cột để ngăn người sau dùng lại.
+- **Tin rằng báo cáo `SELECT` khóa bảng.** Gặp khi đo: `SELECT` thường không chặn `INSERT` trong PostgreSQL, nên báo cáo thường không làm chậm tạo đơn ở cả hai bản. Triệu chứng ở mục 1 chỉ xảy ra khi có khóa tường minh như `LOCK TABLE`. Điều tra loại sự cố này phải xem `pg_locks`, đừng đổ cho "báo cáo nặng".
+- **Coi tách schema là đã hết rủi ro từ báo cáo.** Khóa trên bản sao không chặn tạo đơn, nhưng chặn consumer: p95 độ trễ bản sao lên 2.268,8 ms. Sự cố chuyển từ "khách không tạo được đơn" sang "shipping thấy đơn trễ vài giây".
+- **Test tính nguyên tử bằng lỗi xảy ra trước lúc gửi sự kiện.** Bản đầu của test làm `order_items` lỗi, mà bước đó đứng trước lúc gửi nên sự kiện chưa hề được gửi; phép thử âm "gửi ngoài transaction" được 0/3 test đỏ. Lỗi phải xảy ra sau lúc gửi, tức lúc commit: dùng constraint trigger `DEFERRABLE INITIALLY DEFERRED`.
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -128,6 +131,14 @@ sequenceDiagram
 
 **Thay đổi so với hệ thống hiện tại:** thêm hai schema và hai role, chuyển bảng về chủ sở hữu, thêm hàng đợi sự kiện và consumer ở shipping, thêm bản sao `shipment_orders`; đội vận hành phải theo dõi độ trễ hàng đợi (consumer lag) như một chỉ số mới và chấp nhận dữ liệu đơn ở shipping trễ vài giây.
 
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, Kysely 0.29.6, `pg` 8.23.1, TypeScript 5.9.3, Vitest 5.0.3, esbuild 0.28.2, `ghcr.io/pgmq/pg16-pgmq:v1.13.0` (PostgreSQL 16.15), k6 `grafana/k6:1.4.2`.
+- Role `order_rw` và `shipping_rw` vừa là role chạy app vừa là chủ schema, nên mỗi service tự chạy migration của mình. Môi trường thật nên tách role migration và role app như bài 17/05; lab gộp lại để giữ gọn.
+- Hàng đợi là bề mặt ghi chung duy nhất. Quyền được cấp hẹp theo vai: `order_rw` chỉ gửi, `shipping_rw` chỉ đọc và archive, nên chỉ số "số bảng được hơn một service ghi" không tính schema `pgmq`.
+- Mỗi sự kiện mang đủ trường cùng `orderVersion`, nên bên nhận giữ bản mới nhất mà không cần sự kiện đúng thứ tự, cũng không cần bảng `event_id`. Khác với mục 3.3, idempotent ở đây dựa trên `order_id` và phiên bản.
+- Báo cáo có hai chế độ: `plain` chỉ đọc, `lock` giữ `SHARE` lock trên bảng trong lúc đọc, để tách bạch tác động của truy vấn nặng và của khóa.
+- Bản "trước" chạy migration bằng superuser, vì database dùng chung thường có một người giữ quyền đổi cấu trúc.
+
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
 | Chỉ số | Trước (minh họa) | Mục tiêu khi thực hành | Cách đo |
@@ -142,6 +153,72 @@ sequenceDiagram
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** đội shipping đổi mô hình dữ liệu theo nhịp của mình mà không gây sự cố nhận đơn; báo cáo không còn làm chậm việc tạo đơn; thời gian họp phối hợp đổi schema giữa các đội giảm.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp, không có khoảng ngủ. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. PostgreSQL 16.15, PGMQ 1.13.0, service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2. Service, database và k6 chạy cùng mạng Compose. Load 1 phút của macOS: 1,1 – 3,4.
+
+**Tải:** seed đúng 100.000 đơn như mục 8, mô hình mở 30 request/giây trong 2 phút mỗi kịch bản. Hai bản dựng từ volume sạch, chạy tuần tự. Báo cáo chạy 4 lần mỗi phút, mỗi lần khoảng 2,8 – 3,0 giây. Không rớt iteration nào.
+
+| Chỉ số | Trước | Sau | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| Số bảng được hơn một service ghi | 5 | 0 | 0 | Đạt, đọc từ `information_schema.role_table_grants` |
+| Lỗi ở `order-service` khi shipping đổi schema | 1.193/1.800 đơn lỗi, mọi đơn sau migration | 0/1.801 | 0 lỗi | Đạt |
+| p95 tạo đơn khi báo cáo thường chạy | 5,2 ms | 5,2 ms | ≤ 300 ms | Đạt, nhưng bản trước cũng đạt: báo cáo thường không chặn ghi |
+| p95 tạo đơn khi báo cáo giữ khóa | 2.267,0 ms | 4,2 ms | ≤ 300 ms | Đạt |
+| Độ trễ bản sao, p95 khi không có khóa | không áp dụng | 108,2 ms (không báo cáo), 107,2 ms (báo cáo thường) | ≤ 2 giây | Đạt |
+| Độ trễ bản sao, p95 khi báo cáo giữ khóa | không áp dụng | 2.268,8 ms, lớn nhất 2.951,5 ms | ≤ 2 giây | **Không đạt** |
+| Quyền truy cập chéo | có | bị từ chối (42501) | bị từ chối | Đạt, 6 kịch bản trong `test/cross-schema-access-denied.test.ts` |
+
+**Độ trễ tạo đơn chi tiết** (lượt chính, đơn vị ms):
+
+| Kịch bản | Bản | p50 | p95 | p99 | Lớn nhất |
+|---|---|---|---|---|---|
+| Không báo cáo | Trước | 3,6 | 5,2 | 6,4 | 18,7 |
+| Không báo cáo | Sau | 4,0 | 6,0 | 8,6 | 77,5 |
+| Báo cáo thường | Trước | 3,3 | 5,2 | 7,8 | 37,4 |
+| Báo cáo thường | Sau | 3,2 | 5,2 | 6,0 | 17,6 |
+| Báo cáo giữ khóa | Trước | 3,9 | 2.267,0 | 2.861,1 | 3.304,4 |
+| Báo cáo giữ khóa | Sau | 2,7 | 4,2 | 5,1 | 15,5 |
+
+**Ba vòng 60 giây, xoay thứ tự** (p95 tạo đơn, đơn vị ms, 1.800 – 1.801 đơn mỗi lượt):
+
+| Vòng | Thứ tự chạy | Trước: không báo cáo / báo cáo thường | Sau: không báo cáo / báo cáo thường |
+|---|---|---|---|
+| 1 | sau, trước | 4,5 / 4,1 | 4,7 / 4,3 |
+| 2 | trước, sau | 4,4 / 4,2 | 4,8 / 4,2 |
+| 3 | sau, trước | 4,5 / 4,0 | 4,8 / 4,2 |
+
+**Migration của shipping giữa lúc tạo đơn** (lượt 60 giây, migration chạy ở giây thứ 20, bảng 100.000 dòng):
+
+| | Trước | Sau |
+|---|---|---|
+| Thời gian chạy migration | 462 ms | 311 ms |
+| Đơn thành công / lỗi | 607 / 1.193 | 1.801 / 0 |
+| Sự kiện chờ khi shipping bản cũ gặp lỗi | không áp dụng | 1.209 |
+| Thời gian từ lúc deploy shipping bản mới tới khi hết hàng đợi | không áp dụng | 5.296 ms |
+| Đơn thiếu trong bản sao sau khi bắt kịp | không áp dụng | 0 |
+
+**Đọc số này thế nào**
+- Triệu chứng "báo cáo làm chậm tạo đơn" chỉ tái hiện được khi báo cáo giữ khóa. Báo cáo thường không làm chậm ở cả hai bản: chênh lệch nằm trong mức nhiễu, kể cả p95 thấp hơn đôi chút vì kịch bản không báo cáo chạy trước, lúc service còn nguội. Tách schema không phải cách duy nhất chữa lỗi này: bỏ `LOCK TABLE` cũng hết, và rẻ hơn.
+- Lợi ích khó thay thế nhất của pattern là khoanh vùng sự cố đổi schema: 1.193 đơn lỗi so với 0, và phía shipping tự bắt kịp mà không mất sự kiện.
+- Khóa trên bản sao không biến mất mà chuyển thành độ trễ bản sao, và vượt mục tiêu 2 giây. Muốn đạt thì báo cáo không nên giữ khóa trên bảng consumer đang ghi.
+- Thời gian bắt kịp 5.296 ms gồm thời gian dựng lại container và visibility timeout 5 giây của lần đọc lỗi trước, chưa tách riêng được từng phần.
+- Độ trễ bản sao khoảng 60 ms ở p50 chủ yếu đến từ chu kỳ đọc 100 ms của consumer.
+
+**Test:** 26/26 đạt trên PostgreSQL và PGMQ thật. `node scripts/kiem-chung-lab.mjs` đạt 6/6 bước từ volume sạch.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ | Test nào đỏ |
+|---|---|---|
+| Cấp quyền chéo: `shipping_rw` đọc được bảng đơn | 1/10 | `shipping_rw` đọc bảng đơn bị từ chối |
+| Bản sao chép thêm trường giá | 1/10 | Bản sao không có trường giá |
+| Gửi sự kiện ngoài transaction ghi đơn | 1/3 | Lỗi lúc commit thì sự kiện đã gửi cũng mất theo |
+| Bỏ điều kiện phiên bản khi ghi bản sao | 1/7 | Sự kiện cũ tới muộn không kéo địa chỉ về bản trước |
+| Archive sự kiện trước khi xử lý | 1/2 | Shipping bản mới bắt kịp mọi sự kiện đã chờ |
+
+**Hạn chế:** mọi thứ chung một máy và một PostgreSQL, nên lab không đo được hai service tranh CPU, bộ nhớ, I/O khi máy chủ gần bão hòa: máy đo có 10 nhân và báo cáo chỉ chiếm vài nhân trong vài giây. Mức cách ly của bài là schema và role, không phải tài nguyên. Mỗi kịch bản có một lượt 2 phút; ba vòng 60 giây chỉ gồm hai kịch bản không có khóa. Chạy pin, cùng nguồn điện cho cả hai bản.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -170,30 +247,60 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: dựng Postgres có PGMQ, hai NestJS app cùng ghi bảng `orders` chung; seed 100.000 đơn; viết báo cáo nặng ở shipping.
-- [ ] Bước 2: đo "trước": k6 tạo đơn 30 request/giây trong khi chạy báo cáo; chạy migration đổi cột `address` ở shipping và ghi số lỗi của order-service.
-- [ ] Bước 3: tạo schema `ordering`, `shipping` và hai role; chuyển bảng; thêm sự kiện `OrderCreated` qua PGMQ trong cùng transaction; viết consumer upsert `shipment_orders`; `REVOKE` quyền chéo.
-- [ ] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5.
-- [ ] Bước 5: test: (a) role shipping đọc schema ordering bị từ chối; (b) migration shipping không gây lỗi order; (c) sự kiện tới hai lần chỉ upsert một bản sao; (d) consumer tắt rồi mở lại vẫn nhận đủ sự kiện.
+- [x] Bước 1: dựng Postgres có PGMQ, hai NestJS app cùng ghi bảng `orders` chung; seed 100.000 đơn; viết báo cáo nặng ở shipping.
+- [x] Bước 2: đo "trước": k6 tạo đơn 30 request/giây trong khi chạy báo cáo; chạy migration đổi cột `address` ở shipping và ghi số lỗi của order-service.
+- [x] Bước 3: tạo schema `ordering`, `shipping` và hai role; chuyển bảng; thêm sự kiện `OrderCreated` qua PGMQ trong cùng transaction; viết consumer upsert `shipment_orders`; `REVOKE` quyền chéo.
+- [x] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5.
+- [x] Bước 5: test: (a) role shipping đọc schema ordering bị từ chối; (b) migration shipping không gây lỗi order; (c) sự kiện tới hai lần chỉ upsert một bản sao; (d) consumer tắt rồi mở lại vẫn nhận đủ sự kiện.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 apps/
+  truoc/                          # hai app dùng chung 5 bảng trong schema shared
   order-service/
-    src/ migrations/        # schema ordering, publish sự kiện
+    migrations/                   # schema ordering, chạy bằng role order_rw
+    order-service.module.ts       # [PATTERN] ghi đơn và gửi sự kiện cùng transaction
+    published-event.ts            # hợp đồng công khai, tách khỏi tên cột
   shipping-service/
-    src/ migrations/        # schema shipping, consumer, bản sao shipment_orders
-truoc/                      # hai app dùng chung bảng orders để tái hiện sự cố
+    migrations/                   # [PATTERN] bản sao chỉ có trường shipping cần; 002 tách address
+    order-event.consumer.ts       # [PATTERN] upsert theo order_id, chỉ phiên bản mới hơn được ghi đè
+    order-event-translator.ts     # dịch sự kiện sang mô hình của shipping
+    shipping-service.module.ts    # API và báo cáo
+libs/platform/                    # log, correlation id, kết nối Kysely, chạy migration
+db/init/                          # role, schema, hàng đợi và bản "trước"
+db/seed.sql                       # 100.000 đơn cho lượt đo
+scripts/migrate.ts                # mỗi service tự chạy migration bằng role của mình
 test/
   cross-schema-access-denied.test.ts
   shipping-migration-does-not-break-orders.test.ts
   duplicate-event-upserts-once.test.ts
-bench/orders-during-report.k6.js
-docker-compose.yml
+  consumer-restart-receives-all-events.test.ts
+  event-and-order-commit-together.test.ts
+  report-lock-does-not-block-orders.test.ts
+bench/
+  orders-during-report.k6.js
+  run-scenario.ts                 # đo một bản: đối chứng, báo cáo thường, báo cáo giữ khóa, migration
+  negative-drills.ts
+docker-compose.yml                # postgres; profile truoc, sau, bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(chỉ cần Docker; k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+docker compose up -d --wait  # chỉ dựng PostgreSQL có PGMQ
+pnpm typecheck && pnpm test  # test tự dựng lại schema bằng migration của từng service
+pnpm bench:drills            # phép thử âm, cần PostgreSQL đang chạy
+docker compose down -v
+
+# Đo hai bản, mỗi lệnh khoảng 7 phút và tự dọn sau khi xong
+pnpm bench:scenario --variant truoc --run main
+pnpm bench:scenario --variant sau --run main
 ```
+
+## Bài học sau khi làm
+
+- Triệu chứng trong đề bài chỉ đúng một nửa. "Báo cáo khóa bảng" không phải do `SELECT`, mà do khóa tường minh; báo cáo thường không làm chậm tạo đơn ở bản nào. Nếu dàn cảnh để bản "trước" chậm rồi quy công cho pattern thì sẽ kết luận sai, nên lab đo cả hai chế độ.
+- Lợi ích thật của pattern là khoanh vùng sự cố đổi schema: 1.193 đơn lỗi so với 0, sự kiện chờ trong hàng đợi và không mất đơn nào.
+- Pattern không xóa rủi ro mà đổi chỗ của nó. Khóa trên bản sao không làm khách lỗi nhưng làm bản sao trễ quá mục tiêu, và sau migration shipping bản cũ ngừng xử lý tới khi deploy bản mới. Vì vậy độ trễ hàng đợi phải thành chỉ số vận hành.
+- Phép thử âm bắt được một test xanh giả của chính bài: test "ghi đơn lỗi thì không có sự kiện" làm lỗi ở bước trước lúc gửi nên không chứng minh gì. Đổi sang lỗi lúc commit mới bắt được việc gửi ngoài transaction.
+- Hạn chế: mức cách ly là schema và role trên một máy chủ, nên hai service vẫn chung CPU, bộ nhớ và I/O. Tách máy chủ là bước sau và cần Transactional Outbox (14/03), vì `pgmq.send` cùng transaction chỉ làm được khi chung một PostgreSQL.

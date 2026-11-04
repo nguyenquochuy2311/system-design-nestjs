@@ -467,3 +467,14 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/01 (mục 3.4, 4, 5.1 của bài). Với (4): ba vòng 60 giây xoay thứ tự cho chênh p95 1,9 – 3,3 ms, hai dải không chồng nhau, nên chênh lệch có thật nhưng nhỏ.
 **Ảnh hưởng:** các bài còn lại của scope 07 và bài có mục tiêu độ trễ theo số minh họa xem lại chỉ số chính theo (4), nhất là 07/05 và 07/06. Bài 07/02, 07/07 dùng lại (2). Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/02 (Database per Service)
+
+**Quyết định**
+1. **Quyền PGMQ cấp hẹp theo vai đã kiểm trên 1.13.0**: bên gửi cần `USAGE` schema, `EXECUTE` hàm, `SELECT` trên `pgmq.meta`, `SELECT, INSERT` trên `q_<queue>` và quyền trên sequence; bên đọc cần `SELECT, UPDATE, DELETE` trên `q_<queue>` và `SELECT, INSERT` trên `a_<queue>`. Hẹp hơn cách cấp `ALL TABLES` của bài 07/01, và test kiểm được bên đọc không gửi được.
+2. **Test tính nguyên tử phải làm lỗi sau bước cần chứng minh.** Lỗi ở bước đứng trước lúc gửi sự kiện thì sự kiện chưa hề gửi, test xanh dù code gửi ngoài transaction. Làm lỗi lúc commit bằng `CREATE CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`. Bổ sung cho nhật ký 01/03 điểm 4.
+3. **Đừng dàn cảnh triệu chứng "báo cáo khóa bảng".** `SELECT` thường không chặn `INSERT` trong PostgreSQL. Bài có triệu chứng kiểu này đo cả chế độ chỉ đọc và chế độ giữ khóa, rồi ghi chênh lệch trung thực.
+4. **Ghi rõ chi phí chuyển đi đâu.** Bài về cách ly đo cả phía nhận chi phí, không chỉ phía được lợi. Ở 07/02: p95 tạo đơn còn 4,2 ms nhưng p95 độ trễ bản sao là 2.268,8 ms.
+
+**Lý do:** kiểm trực tiếp ở bài 07/02 (mục 3.4, 4, 5.1 của bài). Với (2): phép thử âm "gửi ngoài transaction" ban đầu chỉ có 0/3 test đỏ.
+**Ảnh hưởng:** 14/03, 14/04, 07/07 dùng lại (1), (2). Bài có triệu chứng về khóa hoặc tải báo cáo (02/06, 18/xx) theo (3). Mục tiêu độ trễ đặt theo số minh họa tiếp tục theo nhật ký bài 07/01 điểm 4.

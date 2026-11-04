@@ -1,0 +1,89 @@
+# Lab 07/02. `docker compose up -d --wait` chỉ dựng PostgreSQL có PGMQ, đủ cho `pnpm test` (service chạy trong tiến trình test).
+# Để đo: profile `truoc` (hai app chung bảng) hoặc `sau` (schema và role riêng), k6 ở profile `bench`, cùng mạng Compose.
+# Service là file JS đã gói bằng esbuild, mount chỉ đọc vào node:20-alpine. Mật khẩu role chỉ dùng cho lab.
+name: lab-07-02
+
+x-node-service: &node-service
+  image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+  working_dir: /app
+  volumes:
+    - ./dist:/app:ro
+  labels:
+    lab.id: "07-02"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+services:
+  postgres:
+    image: ghcr.io/pgmq/pg16-pgmq:v1.13.0
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lab
+    ports:
+      - "127.0.0.1:55432:5432"
+    shm_size: 1gb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db:/lab/db:ro
+    labels:
+      lab.id: "07-02"
+    healthcheck:
+      # Hỏi qua TCP: lúc chạy init script, server tạm chỉ nghe Unix socket (nhật ký 02/04 điểm 1).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d lab"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  truoc-order:
+    <<: *node-service
+    profiles: ["truoc"]
+    command: ["node", "truoc.cjs"]
+    environment:
+      SERVICE_NAME: truoc-order
+      DATABASE_URL: postgres://truoc_order:truoc_order@postgres:5432/lab
+
+  truoc-shipping:
+    <<: *node-service
+    profiles: ["truoc"]
+    command: ["node", "truoc.cjs"]
+    environment:
+      SERVICE_NAME: truoc-shipping
+      DATABASE_URL: postgres://truoc_shipping:truoc_shipping@postgres:5432/lab
+
+  order-service:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "order-service.cjs"]
+    environment:
+      DATABASE_URL: postgres://order_rw:order_rw@postgres:5432/lab
+
+  shipping-service:
+    <<: *node-service
+    profiles: ["sau"]
+    command: ["node", "shipping-service.cjs"]
+    environment:
+      DATABASE_URL: postgres://shipping_rw:shipping_rw@postgres:5432/lab
+      SHIPPING_ADDRESS_MODEL: ${SHIPPING_ADDRESS_MODEL:-single}
+      ORDER_EVENT_POLL_MS: "100"
+
+  k6:
+    image: grafana/k6:1.4.2@sha256:3656673de3f30424e8ebcfa46acd9558d83b6a43612d0f668ffeac953950c6c7
+    profiles: ["bench"]
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+    labels:
+      lab.id: "07-02"
+
+volumes:
+  pgdata:
+    labels:
+      lab.id: "07-02"

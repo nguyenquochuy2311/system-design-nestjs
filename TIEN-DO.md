@@ -6,7 +6,7 @@
 
 | Tổng số bài | 📋 Kế hoạch | 🔨 Đang làm | ✅ Hoàn thành |
 |---|---|---|---|
-| 193 | 171 | 0 | 22 |
+| 193 | 170 | 0 | 23 |
 
 ## Theo scope
 
@@ -18,7 +18,7 @@
 | [04 · Cache phía frontend (`frontend / cache`)](./04-frontend-cache/) | 6 | 3 | 2 | 1 | 3 | 0 | 3 |
 | [05 · Tìm kiếm (`backend / search`)](./05-backend-search/) | 7 | 2 | 2 | 3 | 7 | 0 | 0 |
 | [06 · Thời gian thực (`frontend / backend / realtime`)](./06-frontend-backend-realtime/) | 7 | 1 | 3 | 3 | 7 | 0 | 0 |
-| [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 7 | 0 | 1 |
+| [07 · Microservices (`backend / microservices`)](./07-backend-microservices/) | 8 | 2 | 4 | 2 | 6 | 0 | 2 |
 | [08 · Monolith (`backend / monolithics`)](./08-backend-monolith/) | 7 | 2 | 3 | 2 | 5 | 0 | 2 |
 | [09 · Monorepo (`backend / monorepo`)](./09-backend-monorepo/) | 6 | 2 | 3 | 1 | 6 | 0 | 0 |
 | [10 · AI — RAG (`backend / AI RAG`)](./10-backend-ai-rag/) | 9 | 2 | 5 | 2 | 9 | 0 | 0 |
@@ -116,7 +116,7 @@
 | Bài | Mức | Trạng thái | Cập nhật |
 |---|---|---|---|
 | [Decompose by Bounded Context — Tách service theo nghiệp vụ (đơn hàng, kho, thanh toán) thay vì theo bảng](./07-backend-microservices/01-decomposition-bounded-context-tach-service-theo-nghiep-vu/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-11-04 |
-| [Database per Service — Hai service cùng ghi vào một bảng, đổi schema một bên làm hỏng bên kia](./07-backend-microservices/02-database-per-service-hai-service-cung-sua-mot-bang/) | 🟢 Cơ bản | 📋 Kế hoạch | 2026-10-06 |
+| [Database per Service — Hai service cùng ghi vào một bảng, đổi schema một bên làm hỏng bên kia](./07-backend-microservices/02-database-per-service-hai-service-cung-sua-mot-bang/) | 🟢 Cơ bản | ✅ Hoàn thành | 2026-11-04 |
 | [Circuit Breaker — Service khuyến mãi chậm 30 giây kéo sập toàn bộ checkout](./07-backend-microservices/03-circuit-breaker-service-khuyen-mai-cham-lam-sap-checkout/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [Timeouts, Retries, Backoff with Jitter — Retry đồng loạt sau sự cố tạo cơn bão request thứ hai](./07-backend-microservices/04-timeout-retry-backoff-jitter-retry-dong-loat-tao-bao-moi/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
 | [API Composition — Màn hình chi tiết đơn cần dữ liệu từ 4 service, ghép ở đâu?](./07-backend-microservices/05-api-composition-man-hinh-don-hang-can-du-lieu-4-service/) | 🟡 Trung bình | 📋 Kế hoạch | 2026-10-06 |
