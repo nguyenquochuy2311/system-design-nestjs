@@ -1,0 +1,8 @@
+[
+  {
+    "name": "bank",
+    "listen": "0.0.0.0:18080",
+    "upstream": "bank:3000",
+    "enabled": true
+  }
+]

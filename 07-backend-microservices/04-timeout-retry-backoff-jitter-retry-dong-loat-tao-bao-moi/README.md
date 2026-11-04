@@ -2,7 +2,7 @@
 
 | Scope | Mức độ | Trạng thái | Pattern gốc | Cập nhật |
 |---|---|---|---|---|
-| 07 · backend / microservices | 🟡 Trung bình | 📋 Kế hoạch | Exponential Backoff and Jitter — Marc Brooker, AWS (2015); Timeouts, retries, backoff — Amazon Builders' Library; Retry — Azure Cloud Design Patterns | 2026-10-06 |
+| 07 · backend / microservices | 🟡 Trung bình | ✅ Hoàn thành | Exponential Backoff and Jitter — Marc Brooker, AWS (2015); Timeouts, retries, backoff — Amazon Builders' Library; Retry — Azure Cloud Design Patterns | 2026-11-04 |
 
 > **Một câu tóm tắt:** Đặt timeout tường minh, chỉ retry có giới hạn cho thao tác an toàn, và giãn các lần retry theo cấp số nhân *cộng ngẫu nhiên* để hàng nghìn client không cùng gõ cửa đúng một thời điểm khi đối tác vừa hồi phục.
 
@@ -107,7 +107,7 @@ sequenceDiagram
 | Chính sách retry | Giới hạn số lần và ngân sách retry toàn tiến trình | Ngân sách kiểu token bucket: tổng retry không quá 10 % lưu lượng, hết thì fail-fast |
 | Backoff với Full Jitter | Tính thời gian chờ mỗi lần | `sleep = random(0, min(cap, base * 2^attempt))`, base 200 ms, cap 2 giây |
 | Idempotency-Key | Cho phép retry thao tác ghi mà không nạp trùng | Key sinh một lần cho mỗi lệnh nạp, gửi lại nguyên key ở mọi lần retry |
-| Hàng đợi đối soát | Hoàn tất lệnh "đang xử lý" sau khi hết ngân sách | Worker hỏi trạng thái giao dịch theo key, không gửi lệnh mới |
+| Hàng đợi đối soát | Hoàn tất lệnh "đang xử lý" sau khi hết ngân sách | Worker hỏi trạng thái theo key; đối tác chưa có giao dịch thì gửi lại cùng key, ở nhịp cố định |
 
 ### 3.4 Điểm dễ sai khi triển khai
 - **Retry ở nhiều tầng.** Client retry 3, gateway retry 3, SDK retry 3 là 27 lần gọi cho một lỗi. Quy ước: retry ở *một* tầng, thường là tầng gần người dùng nhất có đủ ngữ cảnh.
@@ -116,6 +116,9 @@ sequenceDiagram
 - **Timeout tổng lớn hơn timeout của người gọi mình.** Nếu API Gateway cắt ở 5 giây mà wallet retry tới 9 giây, kết quả thành công bị bỏ rơi. Timeout phải co lại theo tầng.
 - **Đếm retry là thành công.** Retry che lỗi khỏi dashboard; phải có counter retry theo nguyên nhân để thấy đối tác đang yếu.
 - **Retry lỗi 429 ngay.** Khi đối tác bảo "chậm lại", tôn trọng `Retry-After` thay vì tự tính backoff.
+- **Đối soát chỉ hỏi mà không gửi lại.** Gặp khi đo: thiết kế ban đầu của mục 3.3 chỉ hỏi trạng thái, nên 987 lệnh chưa từng tới đối tác đều thất bại, nhiều hơn 696 lệnh lỗi của bản "trước". Có Idempotency-Key thì gửi lại cùng key là an toàn, kể cả khi lệnh gốc còn trên đường.
+- **Đặt tác dụng phụ trong bộ lọc retry.** `cockatiel` gọi bộ lọc cả ở lần lỗi cuối, lúc không retry nữa. Bản đầu tiêu token trong bộ lọc nên mỗi lệnh mất thêm một token. Tiêu token ở sự kiện `onRetry`.
+- **Sai số số thực trong token bucket.** Cộng 0,1 mười lần cho 0,999..., không bao giờ đủ 1 token nếu so bằng `>= 1`.
 
 ## 4. Tech stack và tác động (Impact techstack)
 
@@ -130,6 +133,14 @@ sequenceDiagram
 | Hạ tầng local | Docker Compose | wallet, đối tác giả, Toxiproxy, Prometheus | — |
 
 **Thay đổi so với hệ thống hiện tại:** thay HTTP client có timeout và chính sách retry tập trung; thêm Idempotency-Key vào hợp đồng với đối tác; thêm hàng đợi đối soát cho lệnh chưa xác định; đội vận hành theo dõi thêm counter retry và tỷ lệ "đang xử lý".
+
+**Ghi chú khi làm lab**
+- Phiên bản: NestJS 10.4.22, `cockatiel` 3.2.1, `undici` 7.30.1, Fastify 5.12.5, `prom-client` 15.1.3, Toxiproxy 2.12.0, Prometheus 3.14.0, k6 1.4.2. `cockatiel` 4 và `undici` 8 đòi Node ≥ 22 nên lab trên Node 20 ghim hai bản trên.
+- Full Jitter viết tay trong `DelegateBackoff`, vì cần tôn trọng `Retry-After` theo từng lỗi.
+- Đối tác giả chỉ có mô hình quá tải đơn giản: vượt 100 request/giây thì trả 503, không tự sụp hay chậm đi. Lab cố ý không viết đối tác sụp theo ý muốn, nên không tái hiện được "25 phút mới hồi phục".
+- Sự cố dùng toxic `timeout` 0 ms ở chiều gửi đi: dữ liệu bị giữ, kết nối không đóng, tới khi gỡ toxic. Đối tác treo chứ không từ chối.
+- Tổng thời gian kể cả retry dừng ở 4,8 giây, nên trong sự cố treo một lệnh chỉ kịp hai lần thử.
+- Hàng đợi đối soát nằm trong bộ nhớ, tiến trình chết là mất; thật thì phải bền. Bài không có database.
 
 ## 5. Kết quả đầu ra và cách đo (Output impact)
 
@@ -146,6 +157,69 @@ sequenceDiagram
 > ở mục 8 kèm môi trường đo.
 
 **Tác động nghiệp vụ mong đợi:** sự cố ngắn của đối tác chỉ gây gián đoạn ngắn tương ứng; không còn nạp trùng; tổng đài không bị quá tải vì lỗi dây chuyền.
+
+### 5.1 Số đã đo
+
+**Môi trường** (đo ngày 2026-11-04): Apple M5, 10 nhân, 32 GB RAM, macOS (Darwin 25.6.0), chạy pin, mở nắp. Docker Desktop 29.9.2, Compose v5.6.1, máy ảo Docker 10 CPU và 7,75 GiB RAM. Service trên `node:20-alpine` (Node 20.20.2), k6 1.4.2 cùng mạng Compose. Load 1 phút của macOS: 2,6 – 4,5.
+
+**Tải:** mô hình mở 50 request/giây trong 3 phút, đối tác treo 20 giây ở phút thứ 1, công suất đối tác 100 request/giây, không rớt iteration nào. Kịch bản lỗi lẻ: 5 % request trả 503, 60 giây. Số đỉnh gồm cả lệnh gửi và lệnh hỏi của đối soát.
+
+**Các lượt dùng trong bảng:** bản trước có `main` và `round-2`. Bản sau có `main`, `round-2` (đối soát chỉ hỏi, thiết kế ban đầu) và `fix-2` (đối soát gửi lại, bản cuối). Lượt `fix-1` bị loại vì máy ngủ từ 13:40:10 tới 13:41:49 và nguồn điện đổi giữa lượt.
+
+| Chỉ số | Trước | Sau | Mục tiêu | Kết luận |
+|---|---|---|---|---|
+| Đỉnh request/giây trong 10 giây sau hồi phục, so với bình thường | 19,8 lần (990/50), 19,3 lần | 1,2 lần, 2,16 lần, 2,24 lần (112/50, bản cuối) | ≤ 1,3 lần | **Không đạt ổn định:** 1/3 lượt đạt. Hai lượt vọt trong đúng một giây rồi về 60 request/giây (1,2 lần) |
+| Thời gian hồi phục sau sự cố 20 giây | 2 giây, 1 giây | 1 giây (bản cuối) | ≤ 1 phút | Đạt, nhưng bản trước cũng đạt |
+| Request treo quá 5 giây | 910, 910 | 0 ở cả ba lượt | 0 | Đạt |
+| Tỷ lệ thành công khi đối tác lỗi lẻ 5 % | 100 % (3.001/3.001) | 100 % (3.001/3.001) | ≥ 99,5 % | Đạt, nhưng bản trước cũng đạt vì nó có retry |
+| Giao dịch nạp trùng | 3 giao dịch thừa cho một lệnh khi phản hồi mất ở mọi lần | 0 | 0 | Đạt, kiểm bằng test và bằng số giao dịch của đối tác |
+| Tổng số lần gọi, mô phỏng 1.000 client | 500.500 (không jitter) | 9.702 (Full Jitter) | thấp hơn rõ | Đạt |
+
+**Kết cục cuối của lệnh nạp trong kịch bản sự cố** (chỉ số thêm khi làm, không có ở bảng mục 5):
+
+| Lượt | Hoàn tất ngay | Qua đối soát rồi hoàn tất | Thất bại | Tỷ lệ hoàn tất |
+|---|---|---|---|---|
+| Trước, `main` | 8.304 | không áp dụng | 696 | 92,3 % |
+| Trước, `round-2` | 8.270 | không áp dụng | 730 | 91,9 % |
+| Sau, đối soát chỉ hỏi, `main` | 8.014 | 0 | 987 | 89,0 % |
+| Sau, đối soát chỉ hỏi, `round-2` | 8.052 | 0 | 949 | 89,5 % |
+| **Sau, bản cuối, `fix-2`** | **8.048** | **953** | **0** | **100 %** |
+
+**Độ trễ trong kịch bản sự cố** (đơn vị ms): bản trước p95 14.098,3, p99 19.964,2, lớn nhất 22.911,8 (`main`). Bản sau p95 4.087,3, p99 4.803,1, lớn nhất 4.887,9 (`fix-2`). Hạn chót 4,8 giây thể hiện rõ ở p99.
+
+**Mô phỏng** (`pnpm sim:jitter`, 1.000 client, trung vị 20 hạt, không cần hạ tầng):
+
+| Chiến lược | Tổng lần gọi | Số khe tới khi xong |
+|---|---|---|
+| Không jitter | 500.500 | 4.051.942 |
+| Equal Jitter | 9.682 | 6.374 |
+| Full Jitter | 9.702 | 5.440 |
+| Decorrelated Jitter | 14.395 | 2.082 |
+
+**Đọc số này thế nào**
+- Đỉnh của bản trước gấp khoảng 19 lần, cao hơn nhiều số 3,5 lần ở mục 5: không có timeout nên gần 1.000 lệnh treo được giải phóng cùng lúc khi đối tác trở lại, rồi 503 lại kéo theo retry cùng nhịp.
+- Bản sau chạy ổn định ở 60 request/giây sau sự cố: 50 lệnh mới cộng khoảng 10 lời gọi đối soát. Hai lượt có một giây lên 108 và 112. Nguyên nhân chưa tách riêng được; có thể là dữ liệu Toxiproxy giữ được xả ra khi gỡ toxic. Mục tiêu 1,3 lần vì vậy chưa đạt ổn định, dù đã thấp hơn bản trước khoảng 9 lần.
+- "Hồi phục 25 phút" không tái hiện được và cả hai bản đều hồi phục trong vài giây. Đối tác giả chỉ từ chối phần vượt công suất chứ không sụp, nên đợt retry tự tan. Lab không chứng minh được hiện tượng "ngã lần hai".
+- Bản trước đạt 100 % với lỗi lẻ vì nó cũng retry; 95 % ở mục 5 là trường hợp không retry. Điểm khác là bản trước retry cả lỗi xác định và không có key.
+- Bản sau không thắng về tỷ lệ hoàn tất cho tới khi đối soát biết gửi lại. Không đo kết cục cuối thì đã không thấy điều này: lượt `main` nhìn rất đẹp về đỉnh tải và độ trễ, trong khi mất nhiều lệnh hơn bản trước.
+- Mô phỏng theo mô hình đơn giản: mỗi khe một lời gọi thắng. Không jitter ra đúng N(N+1)/2 lần gọi vì các client trùng nhịp mãi mãi, một trường hợp cực đoan. Equal và Full gần như ngang nhau về số lần gọi, còn Decorrelated tốn nhiều lần gọi hơn nhưng xong sớm nhất.
+
+**Test:** 23/23 đạt, không cần Docker. `node scripts/kiem-chung-lab.mjs` đạt 6/6 bước từ đầu. Đã kiểm trực tiếp trên Compose: `wallet_topups_total` và `wallet_reconcile_queue_depth` tới được Prometheus.
+
+**Phép thử âm** (`pnpm bench:drills`, số test đỏ trên số test của file bảo vệ phần đó):
+
+| Gỡ phần nào của pattern | Test đỏ |
+|---|---|
+| Bỏ Idempotency-Key | 3/6 |
+| Mỗi lần retry sinh key mới | 3/6 |
+| Retry cả lỗi xác định | 2/13 |
+| Bỏ ngân sách retry | 1/13 |
+| Bỏ jitter | 2/13 |
+| Bỏ timeout và hạn chót tổng | 1/13 |
+| Đối soát chỉ hỏi, không gửi lại | 1/6 |
+| Không tôn trọng `Retry-After` | 1/13 |
+
+**Hạn chế:** bản cuối chỉ có một lượt sạch (`fix-2`). Một instance wallet và một máy, nên ngân sách retry chưa được thử trên nhiều instance. Chạy pin, cùng nguồn điện ở các lượt dùng trong bảng. Hàng đợi đối soát trong bộ nhớ nên chưa kiểm tình huống wallet chết giữa chừng.
 
 ## 6. Đánh đổi và khi KHÔNG nên dùng
 
@@ -175,32 +249,54 @@ sequenceDiagram
 
 ## 8. Kế hoạch thực hành
 
-- [ ] Bước 1: viết đối tác giả (Fastify) có cờ sự cố và counter request theo giây; wallet-service với HTTP client mặc định và retry cố định; Toxiproxy ở giữa; Docker Compose.
-- [ ] Bước 2: đo "trước": k6 50 request/giây trong 3 phút, Toxiproxy cắt kết nối 20 giây ở phút 1; ghi đỉnh request tới đối tác sau hồi phục và thời gian hồi phục. Chạy script mô phỏng 1.000 client để có số tổng lần gọi với backoff không jitter.
-- [ ] Bước 3: thay bằng `undici` có timeout, `cockatiel` retry 3 lần với Full Jitter và ngân sách; phân loại lỗi; thêm Idempotency-Key và hàng đợi đối soát.
-- [ ] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5; so sánh các chiến lược jitter bằng script mô phỏng.
-- [ ] Bước 5: test: (a) lỗi 400 không retry; (b) 503 retry tối đa 3 lần với thời gian chờ nằm trong khoảng kỳ vọng; (c) hai lần gửi cùng key chỉ tạo một giao dịch ở đối tác giả; (d) hết ngân sách thì trả "đang xử lý" và ghi hàng đợi đối soát.
+- [x] Bước 1: viết đối tác giả (Fastify) có cờ sự cố và counter request theo giây; wallet-service với HTTP client mặc định và retry cố định; Toxiproxy ở giữa; Docker Compose.
+- [x] Bước 2: đo "trước": k6 50 request/giây trong 3 phút, Toxiproxy cắt kết nối 20 giây ở phút 1; ghi đỉnh request tới đối tác sau hồi phục và thời gian hồi phục. Chạy script mô phỏng 1.000 client để có số tổng lần gọi với backoff không jitter.
+- [x] Bước 3: thay bằng `undici` có timeout, `cockatiel` retry 3 lần với Full Jitter và ngân sách; phân loại lỗi; thêm Idempotency-Key và hàng đợi đối soát.
+- [x] Bước 4: đo "sau" cùng kịch bản; ghi số thật và môi trường vào mục 5; so sánh các chiến lược jitter bằng script mô phỏng.
+- [x] Bước 5: test: (a) lỗi 400 không retry; (b) 503 retry tối đa 3 lần với thời gian chờ nằm trong khoảng kỳ vọng; (c) hai lần gửi cùng key chỉ tạo một giao dịch ở đối tác giả; (d) hết ngân sách thì trả "đang xử lý" và ghi hàng đợi đối soát.
 
-**Cấu trúc code dự kiến**
+**Cấu trúc code**
 ```text
 src/
   wallet/
-    bank.client.ts            # [PATTERN] undici timeout + cockatiel retry/backoff/jitter
-    error-classifier.ts       # lỗi nào được retry
-    retry-budget.ts           # token bucket cho retry
-    reconcile.worker.ts       # hỏi trạng thái theo Idempotency-Key
-  fake-bank/                  # đối tác giả, ghi key, counter theo giây
+    bank.client.ts            # [PATTERN] timeout hai lớp, retry, Full Jitter, Idempotency-Key; cả bản trước
+    error-classifier.ts       # [PATTERN] lỗi nào được retry
+    retry-budget.ts           # [PATTERN] token bucket cho retry
+    reconcile.worker.ts       # [PATTERN] hỏi trạng thái theo key, gửi lại cùng key ở nhịp cố định
+    wallet.module.ts, metrics.ts
+  fake-bank/                  # đối tác giả, ghi key, đếm request theo giây
+  shared/                     # log, correlation id, khởi động app
 sim/
   jitter-simulation.ts        # 1.000 client tranh chấp, so sánh chiến lược
+infra/                        # cấu hình Toxiproxy và Prometheus
 test/
-  400-error-not-retried.test.ts
+  retry-policy.test.ts
   same-key-one-transaction.test.ts
-bench/topup-during-partner-outage.k6.js
-docker-compose.yml
+  jitter-simulation.test.ts
+bench/
+  topup-during-partner-outage.k6.js
+  run-scenario.ts             # đo một bản: sự cố 20 giây, kết cục đối soát, lỗi lẻ 5 %
+  negative-drills.ts
+docker-compose.yml            # wallet, bank, toxiproxy, prometheus; k6 ở profile bench
 ```
 
-**Cách chạy** *(điền khi bắt đầu code)*
+**Cách chạy** *(test không cần Docker; lượt đo chỉ cần Docker, k6 chạy trong container)*
 ```bash
-docker compose up -d
-pnpm install && pnpm test
+pnpm install                 # tự gói dist/*.cjs
+pnpm typecheck && pnpm test
+pnpm sim:jitter              # mô phỏng, in bảng so sánh
+pnpm bench:drills            # phép thử âm
+
+# Đo hai bản, mỗi lệnh khoảng 6 phút và tự dọn sau khi xong; đừng gập nắp máy trong lúc đo
+pnpm bench:scenario --variant truoc --run main
+pnpm bench:scenario --variant sau --run main
 ```
+
+## Bài học sau khi làm
+
+- Kết quả quan trọng nhất đến từ một chỉ số không có trong kế hoạch. Theo đúng thiết kế ban đầu, bản sau đẹp về đỉnh tải và độ trễ nhưng mất 987 lệnh, nhiều hơn 696 của bản trước. Chỉ thấy điều này nhờ đo kết cục cuối của lệnh "đang xử lý". Sau khi đối soát gửi lại cùng key: 9.001/9.001 lệnh hoàn tất, không trùng.
+- Idempotency-Key không chỉ để chống trùng khi retry, mà còn là thứ cho phép gửi lại muộn một cách an toàn.
+- Timeout và jitter làm tốt đúng việc của chúng: 0 request treo quá 5 giây so với 910, và đỉnh tải giảm khoảng 9 lần. Nhưng mục tiêu 1,3 lần chưa đạt ổn định.
+- Bản "trước" không tệ như đề bài. Nó hồi phục trong 1 – 2 giây và chịu được lỗi lẻ vì đã có retry. Lab không tái hiện "25 phút" vì đối tác giả không được viết để sụp theo ý muốn; hiện tượng đó cần đối tác mất công suất khi quá tải.
+- Bộ lọc retry không được có tác dụng phụ, và token bucket số thực cần dung sai: cả hai lỗi này đều do test bắt được.
+- Lượt `fix-1` bị loại vì máy gập nắp giữa lượt. Bộ phát hiện khoảng ngủ trong script đã báo, đối chiếu lại bằng `pmset -g log`.

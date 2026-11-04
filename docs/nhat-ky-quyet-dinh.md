@@ -490,3 +490,15 @@ Bổ sung cho mục ngay trên: sau khi cài Docker, bài 07/01 đã chạy th�
 
 **Lý do:** kiểm trực tiếp ở bài 07/03 (mục 3.5, 4, 5.1 của bài). Với (5): lượt `main` đầu ngủ từ 12:14:44 tới 12:26:40 và đã bị bỏ.
 **Ảnh hưởng:** 07/04, 07/05, 07/08 dùng lại (1)–(4). Bài 07/04 nên đọc lại kết quả về pool: pool nhỏ không giới hạn lưu lượng đổ vào phụ thuộc. Bảng cổng của skill không đổi.
+
+## 2026-11-04 — Quy ước lab rút ra từ bài 07/04 (Timeouts, Retries, Backoff with Jitter)
+
+**Quyết định**
+1. **Đo kết cục cuối, không chỉ phản hồi nhanh.** Bài có trạng thái "đang xử lý" phải chờ mọi lệnh có kết cục rồi mới kết luận. Ở 07/04, thiết kế ban đầu đẹp về đỉnh tải và độ trễ nhưng mất 987 lệnh, nhiều hơn 696 của bản "trước"; chỉ số này không có trong kế hoạch của bài.
+2. **Đính chính thiết kế 07/04:** đối soát hỏi trạng thái theo key, nếu đối tác chưa có giao dịch thì gửi lại cùng key ở nhịp cố định. README ban đầu ghi "không gửi lệnh mới", làm mọi lệnh chưa tới đối tác đều thất bại. Bài 07/07 (Saga) và 14/07 cần xem lại điểm này.
+3. **`cockatiel` 3.2.1 cho lab trên Node 20** (bản 4 đòi Node ≥ 22). Bộ lọc `handleWhen` được gọi cả ở lần lỗi cuối, nên không đặt tác dụng phụ trong đó; việc gì chỉ xảy ra khi thật sự retry thì đặt ở `onRetry`. Backoff phụ thuộc lỗi (như `Retry-After`) dùng `DelegateBackoff`.
+4. **Đối tác giả không tự sụp theo ý muốn.** Chỉ mô hình giới hạn công suất đơn giản. Hiện tượng cần đối tác mất công suất khi quá tải thì ghi là không tái hiện được, hoặc mô hình hóa tường minh kèm nhãn giả định; không viết để bản "trước" trông tệ.
+5. **Script đo in `sleepGaps` và nguồn điện ở mỗi lượt**, và lượt có khoảng ngủ hoặc đổi nguồn thì loại (bài 07/04: `fix-1`). Lượt đo chạy nền trên laptop là rủi ro lớn nhất của phiên này: nắp máy gập hai lần.
+
+**Lý do:** kiểm trực tiếp ở bài 07/04 (mục 3.4, 4, 5.1 của bài).
+**Ảnh hưởng:** 07/05, 07/07, 07/08 và scope 14 theo (1), (4). Mục tiêu "≤ 1,3 lần" của 07/04 ghi là không đạt ổn định, không điều chỉnh để đạt. Bảng cổng của skill không đổi.
